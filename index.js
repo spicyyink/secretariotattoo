@@ -31,7 +31,7 @@ const ideasScene = new Scenes.WizardScene(
     (ctx) => {
         const zona = ctx.message.text ? ctx.message.text.toLowerCase() : '';
         if (zona.includes('volver')) return irAlMenuPrincipal(ctx);
-        ctx.reply('🌟 Consejo: Para esa zona busca algo que fluya con tu anatomía.');
+        ctx.reply('🌟 Mi consejo: Para esa zona busca algo que fluya con tu anatomía.');
         setTimeout(() => irAlMenuPrincipal(ctx), 1500);
         return ctx.scene.leave();
     }
@@ -41,7 +41,7 @@ const ideasScene = new Scenes.WizardScene(
 const tattooScene = new Scenes.WizardScene(
     'tattoo-wizard',
     (ctx) => {
-        ctx.reply('¡Hola! Soy SpicyBot.\n\n¿Cómo te llamas?');
+        ctx.reply('¡Hola! Soy SpicyBot, tu asistente personal.\n\n¿Cómo te llamas?');
         ctx.wizard.state.formData = { user: ctx.from.username ? `@${ctx.from.username}` : 'Sin alias' };
         return ctx.wizard.next();
     },
@@ -52,7 +52,7 @@ const tattooScene = new Scenes.WizardScene(
     },
     (ctx) => {
         if (ctx.message.text === 'No') {
-            ctx.reply('Lo siento, debes ser mayor de edad.');
+            ctx.reply('Lo siento, necesito que seas mayor de edad para tatuarte.');
             return ctx.scene.leave();
         }
         ctx.reply('¿Sufres de alergias o tomas alguna medicación?', 
@@ -72,7 +72,7 @@ const tattooScene = new Scenes.WizardScene(
     (ctx) => {
         ctx.wizard.state.formData.idea = ctx.message.text;
         ctx.reply('¿Qué tamaño aproximado quieres en cm?', 
-            Markup.keyboard([['No lo sé, que el artista me asesore']]).oneTime().resize());
+            Markup.keyboard([['No lo sé, prefiero que me asesores']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
@@ -95,7 +95,7 @@ const tattooScene = new Scenes.WizardScene(
     async (ctx) => {
         const d = ctx.wizard.state.formData;
         let photoId = ctx.message.photo ? ctx.message.photo[ctx.message.photo.length - 1].file_id : null;
-        await ctx.reply('¡Ficha enviada! El artista te contactará pronto.', Markup.removeKeyboard());
+        await ctx.reply('¡Ficha enviada! Revisaré tu caso y te contactaré pronto.', Markup.removeKeyboard());
 
         const ficha = `🖋️ NUEVA SOLICITUD\n\n👤 Nombre: ${d.nombre}\n🏥 Salud: ${d.salud}\n📞 WhatsApp: ${d.telefono}\n💡 Idea: ${d.idea}\n📏 Tamaño: ${d.tamano}\n🩹 Piel: ${d.piel}\n🕒 Horario: ${d.horario}`;
         
@@ -122,28 +122,35 @@ function irAlMenuPrincipal(ctx) {
 
 // Cuidados
 bot.hears('🧼 Cuidados', (ctx) => {
-    const texto = '✨ **GUÍA PROFESIONAL DE CUIDADOS** ✨\n\n' +
+    const texto = '✨ **MI GUÍA PROFESIONAL DE CUIDADOS** ✨\n\n' +
         '1. **LAVA**: 3 veces al día con jabón neutro y agua tibia.\n' +
         '2. **SECA**: Siempre con papel de cocina a toques, nunca con toalla.\n' +
         '3. **HIDRATA**: Aplica una capa muy fina de crema específica.\n' +
         '4. **PROHIBIDO**: Sol, piscinas, playa y rascar las costras por 15 días.\n\n' +
         '----------------------------------\n' +
-        '✨ **RECOMENDACIÓN DE CREMAS** ✨\n\n' +
-        '✅ **Aquaphor (Eucerin)**: Nuestra favorita. Repara la piel sin obstruir el poro.\n' +
+        '✨ **MI RECOMENDACIÓN DE CREMAS** ✨\n\n' +
+        '✅ **Aquaphor (Eucerin)**: Mi favorita. Repara la piel sin obstruir el poro.\n' +
         '✅ **Bepanthol Tatuaje**: Opción clásica con provitamina B5.\n' +
-        '⚠️ **Nivea**: Usar con precaución. Es preferible comprar las anteriores para asegurar el mejor acabado.\n\n' +
-        'Si tienes dudas o notas inflamación excesiva, escríbenos.';
+        '⚠️ **Nivea**: Úsala con precaución. Prefiero que compres las anteriores para asegurar el mejor acabado.\n\n' +
+        'Si tienes dudas o notas inflamación excesiva, escríbeme directamente.';
     ctx.reply(texto, { parse_mode: 'Markdown' });
 });
 
 // Sorteos
 bot.hears('🎁 Sorteos', (ctx) => {
-    ctx.reply('🎉 **SORTEOS ACTIVOS** 🎉\n\nActualmente no hay sorteos vigentes.\n\nSuelo realizar sorteos de sesiones gratis o descuentos en mi Instagram. ¡Mantente atento! 🖋️', { parse_mode: 'Markdown' });
+    ctx.reply(
+        '🎉 **MI SORTEO ACTIVO EN TELEGRAM** 🎉\n\n' +
+        '¡Estoy de sorteo! No pierdas la oportunidad de participar.\n\n' +
+        '📅 **Fechas:** Se celebra del 5 al 10 de febrero de 2026.\n\n' +
+        '👉 **Participa aquí:** https://t.me/+bAbJXSaI4rE0YzM0\n\n' +
+        '¡Mucha suerte! 🖋️', 
+        { parse_mode: 'Markdown' }
+    );
 });
 
 // Cancelaciones
 bot.hears('📅 Huecos Libres', (ctx) => {
-    ctx.reply('⚡ **AVISO DE CANCELACIONES** ⚡\n\n¿Quieres un tatuaje pronto? Cuando hay cancelaciones de última hora, publico los huecos en mis Stories de Instagram.\n\nSi quieres que te avise personalmente, dímelo al rellenar tu ficha en "Hablar con SpicyBot".', { parse_mode: 'Markdown' });
+    ctx.reply('⚡ **AVISO DE CANCELACIONES** ⚡\n\n¿Quieres un tatuaje pronto? Cuando tengo cancelaciones de última hora, publico los huecos en mis Stories de Instagram.\n\nSi quieres que te avise personalmente, dímelo al rellenar tu ficha en "Hablar con SpicyBot".', { parse_mode: 'Markdown' });
 });
 
 // --- INICIO ---
