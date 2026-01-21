@@ -1,0 +1,17 @@
+{
+  "name": "secretariotattoo",
+  "version": "1.0.0",
+  "description": "Bot para Spicy Inkk",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "telegraf": "^4.16.3"
+  }
+}
