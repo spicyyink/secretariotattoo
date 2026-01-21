@@ -4,7 +4,7 @@ const { Telegraf, Scenes, session, Markup } = require('telegraf');
 const http = require('http');
 
 // ==========================================
-// SERVIDOR DE SALUD (Mantiene el bot vivo)
+// SERVIDOR DE SALUD
 // ==========================================
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -15,12 +15,21 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Servidor en puerto ${PORT}`));
 
 // ==========================================
-// CONFIGURACIÓN DEL BOT
+// CONFIGURACIÓN DEL BOT Y SEGURIDAD
 // ==========================================
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const MI_ID = process.env.MI_ID;
 
-// --- ESTADÍSTICAS ---
+// --- SISTEMA DE CLAVES DE UN SOLO USO ---
+let CLAVES_DISPONIBLES = [
+    'test.spicy.01', 
+    'test-spicy-02', 
+    'spicy.test.03', 
+    'spicy-test-04', 
+    'spicy.test-05'
+];
+const usuariosAutorizados = new Set(); // Guarda los IDs de quienes ya pusieron la clave
+
 let stats = { visitas: 0, fichas: 0 };
 
 // --- ESCENA DE IDEAS ---
@@ -102,7 +111,6 @@ const tattooScene = new Scenes.WizardScene(
 
         await ctx.reply('¡Ficha enviada! El tatuador revisará tu caso y te contactará pronto.', Markup.removeKeyboard());
 
-        // Notificación para el Tatuador
         const ficha = `🖋️ NUEVA SOLICITUD PARA EL TATUADOR\n\n👤 Nombre: ${d.nombre}\n🔗 Telegram: ${d.user}\n🏥 Salud: ${d.salud}\n📞 WhatsApp: ${d.telefono}\n💡 Idea: ${d.idea}\n📏 Tamaño: ${d.tamano}\n🩹 Piel: ${d.piel}\n🕒 Horario: ${d.horario}`;
         
         await ctx.telegram.sendMessage(MI_ID, ficha, {
@@ -117,7 +125,7 @@ const tattooScene = new Scenes.WizardScene(
 // --- MENÚ PRINCIPAL ---
 function irAlMenuPrincipal(ctx) {
     stats.visitas++;
-    return ctx.reply('Bienvenido a Spicy Inkk 🖋️\n¿En qué puedo ayudarte?', 
+    return ctx.reply('Bienvenido a Spicy Inkk 🖋️ (MODO TEST)\n¿En qué puedo ayudarte?', 
         Markup.keyboard([
             ['🔥 Hablar con SpicyBot'],
             ['💡 Consultar Ideas', '🧼 Cuidados'],
@@ -126,10 +134,44 @@ function irAlMenuPrincipal(ctx) {
         ]).oneTime().resize());
 }
 
-// --- LÓGICA DE BOTONES ---
+// --- LÓGICA DE ACCESO (START) ---
+bot.start((ctx) => {
+    // Si ya validó su clave antes, entra directo
+    if (usuariosAutorizados.has(ctx.from.id)) {
+        return irAlMenuPrincipal(ctx);
+    }
+    // Si no, le pedimos la clave
+    ctx.reply('🔒 ACCESO RESTRINGIDO.\nIntroduce una clave de tester de un solo uso para continuar:');
+});
 
+// --- MIDDLEWARE DE FILTRO DE MENSAJES ---
+bot.on('text', (ctx, next) => {
+    const userId = ctx.from.id;
+    const texto = ctx.message.text.toLowerCase();
+
+    // 1. Permitir si el usuario ya está en la lista de autorizados
+    if (usuariosAutorizados.has(userId)) {
+        return next();
+    }
+
+    // 2. Si el texto es una de las claves disponibles
+    if (CLAVES_DISPONIBLES.includes(texto)) {
+        // Eliminar esa clave específica de la lista (un solo uso)
+        CLAVES_DISPONIBLES = CLAVES_DISPONIBLES.filter(c => c !== texto);
+        // Agregar al usuario a la lista de permitidos
+        usuariosAutorizados.add(userId);
+        
+        ctx.reply('✅ Clave aceptada. Esta clave ha quedado desactivada para otros usuarios.');
+        return irAlMenuPrincipal(ctx);
+    }
+
+    // 3. Si no es autorizado y no puso clave válida
+    return ctx.reply('❌ Clave incorrecta o ya utilizada. Introduce una clave válida para testear.');
+});
+
+// --- LÓGICA DE BOTONES ---
 bot.hears('🧼 Cuidados', (ctx) => {
-    ctx.reply('✨ **GUÍA DE CUIDADOS Y AYUDA** ✨', Markup.inlineKeyboard([
+    ctx.reply('✨ **GUÍA DE CUIDADOS** ✨', Markup.inlineKeyboard([
         [Markup.button.callback('📖 Ver Guía de Lavado', 'guia_lavado')],
         [Markup.button.callback('❓ Preguntas Frecuentes', 'faq')],
         [Markup.button.callback('🚨 EMERGENCIA', 'emergencia')]
@@ -137,45 +179,29 @@ bot.hears('🧼 Cuidados', (ctx) => {
 });
 
 bot.hears('💬 Hablar con el Tatuador', (ctx) => {
-    ctx.reply('¿Tienes una duda que no puede resolver el bot? Escríbele directamente al tatuador:', 
+    ctx.reply('Contacto directo:', 
     Markup.inlineKeyboard([[Markup.button.url('📩 Contacto Directo', 'https://t.me/SpicyInkk')]])); 
 });
 
-// Comando de estadísticas para el tatuador
 bot.command('stats', (ctx) => {
     if(ctx.from.id.toString() === MI_ID) {
-        ctx.reply(`📊 ESTADÍSTICAS PARA EL TATUADOR:\n- Personas que han entrado: ${stats.visitas}\n- Fichas completadas: ${stats.fichas}`);
+        ctx.reply(`📊 STATS TEST:\n- Visitas: ${stats.visitas}\n- Fichas: ${stats.fichas}\n- Claves restantes: ${CLAVES_DISPONIBLES.length}`);
     }
 });
 
-bot.action('guia_lavado', (ctx) => {
-    ctx.reply('1. Lava 3 veces al día.\n2. Seca con papel.\n3. Aplica Aquaphor.');
-});
+bot.action('guia_lavado', (ctx) => ctx.reply('1. Lava 3 veces al día.\n2. Seca con papel.\n3. Aplica Aquaphor.'));
+bot.action('faq', (ctx) => ctx.reply('• Mínimo: 60€\n• Edad: +18'));
+bot.action('emergencia', (ctx) => ctx.reply('🚨 Si notas infección, avisa al tatuador.'));
 
-bot.action('faq', (ctx) => {
-    ctx.reply('• Mínimo: 60€\n• Edad: +18\n• Citas: El tatuador requiere fianza previa.');
-});
+bot.hears('🎁 Sorteos', (ctx) => ctx.reply('Sorteo activo en Telegram.'));
+bot.hears('📅 Huecos Libres', (ctx) => ctx.reply('Revisa Stories de Instagram.'));
 
-bot.action('emergencia', (ctx) => {
-    ctx.reply('🚨 Si notas fiebre o infección, contacta con un médico y avisa al tatuador por privado.');
-});
-
-bot.hears('🎁 Sorteos', (ctx) => {
-    ctx.reply('🎉 **SORTEO ACTIVO**\nParticipa aquí: https://t.me/+bAbJXSaI4rE0YzM0', { parse_mode: 'Markdown' });
-});
-
-bot.hears('📅 Huecos Libres', (ctx) => {
-    ctx.reply('⚡ Revisa el Instagram para ver si el tatuador tiene cancelaciones.');
-});
-
-// --- INICIO ---
 const stage = new Scenes.Stage([tattooScene, ideasScene]);
 bot.use(session());
 bot.use(stage.middleware());
 
-bot.start((ctx) => irAlMenuPrincipal(ctx));
 bot.hears('🔥 Hablar con SpicyBot', (ctx) => ctx.scene.enter('tattoo-wizard'));
 bot.hears('💡 Consultar Ideas', (ctx) => ctx.scene.enter('ideas-scene'));
 
-bot.launch().then(() => console.log('✅ SpicyBot Operativo - Modo Tatuador'));
+bot.launch().then(() => console.log('✅ SpicyBot Protegido (Single-use) Operativo'));
 bot.catch((err) => console.error(err));
