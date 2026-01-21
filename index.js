@@ -20,6 +20,9 @@ server.listen(PORT, () => console.log(`Servidor en puerto ${PORT}`));
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const MI_ID = process.env.MI_ID;
 
+// --- ESTADÍSTICAS ---
+let stats = { visitas: 0, fichas: 0 };
+
 // --- ESCENA DE IDEAS ---
 const ideasScene = new Scenes.WizardScene(
     'ideas-scene',
@@ -95,9 +98,12 @@ const tattooScene = new Scenes.WizardScene(
     async (ctx) => {
         const d = ctx.wizard.state.formData;
         let photoId = ctx.message.photo ? ctx.message.photo[ctx.message.photo.length - 1].file_id : null;
-        await ctx.reply('¡Ficha enviada! Revisaré tu caso y te contactaré pronto.', Markup.removeKeyboard());
+        stats.fichas++;
 
-        const ficha = `🖋️ NUEVA SOLICITUD\n\n👤 Nombre: ${d.nombre}\n🏥 Salud: ${d.salud}\n📞 WhatsApp: ${d.telefono}\n💡 Idea: ${d.idea}\n📏 Tamaño: ${d.tamano}\n🩹 Piel: ${d.piel}\n🕒 Horario: ${d.horario}`;
+        await ctx.reply('¡Ficha enviada! El tatuador revisará tu caso y te contactará pronto.', Markup.removeKeyboard());
+
+        // Notificación para el Tatuador
+        const ficha = `🖋️ NUEVA SOLICITUD PARA EL TATUADOR\n\n👤 Nombre: ${d.nombre}\n🔗 Telegram: ${d.user}\n🏥 Salud: ${d.salud}\n📞 WhatsApp: ${d.telefono}\n💡 Idea: ${d.idea}\n📏 Tamaño: ${d.tamano}\n🩹 Piel: ${d.piel}\n🕒 Horario: ${d.horario}`;
         
         await ctx.telegram.sendMessage(MI_ID, ficha, {
             ...Markup.inlineKeyboard([[Markup.button.url('💬 Abrir WhatsApp', `https://wa.me/${d.telefono.replace(/\D/g, '')}`)]])
@@ -110,47 +116,56 @@ const tattooScene = new Scenes.WizardScene(
 
 // --- MENÚ PRINCIPAL ---
 function irAlMenuPrincipal(ctx) {
+    stats.visitas++;
     return ctx.reply('Bienvenido a Spicy Inkk 🖋️\n¿En qué puedo ayudarte?', 
         Markup.keyboard([
             ['🔥 Hablar con SpicyBot'],
             ['💡 Consultar Ideas', '🧼 Cuidados'],
-            ['🎁 Sorteos', '📅 Huecos Libres']
+            ['🎁 Sorteos', '📅 Huecos Libres'],
+            ['💬 Hablar con el Tatuador']
         ]).oneTime().resize());
 }
 
 // --- LÓGICA DE BOTONES ---
 
-// Cuidados
 bot.hears('🧼 Cuidados', (ctx) => {
-    const texto = '✨ **MI GUÍA PROFESIONAL DE CUIDADOS** ✨\n\n' +
-        '1. **LAVA**: 3 veces al día con jabón neutro y agua tibia.\n' +
-        '2. **SECA**: Siempre con papel de cocina a toques, nunca con toalla.\n' +
-        '3. **HIDRATA**: Aplica una capa muy fina de crema específica.\n' +
-        '4. **PROHIBIDO**: Sol, piscinas, playa y rascar las costras por 15 días.\n\n' +
-        '----------------------------------\n' +
-        '✨ **MI RECOMENDACIÓN DE CREMAS** ✨\n\n' +
-        '✅ **Aquaphor (Eucerin)**: Mi favorita. Repara la piel sin obstruir el poro.\n' +
-        '✅ **Bepanthol Tatuaje**: Opción clásica con provitamina B5.\n' +
-        '⚠️ **Nivea**: Úsala con precaución. Prefiero que compres las anteriores para asegurar el mejor acabado.\n\n' +
-        'Si tienes dudas o notas inflamación excesiva, escríbeme directamente.';
-    ctx.reply(texto, { parse_mode: 'Markdown' });
+    ctx.reply('✨ **GUÍA DE CUIDADOS Y AYUDA** ✨', Markup.inlineKeyboard([
+        [Markup.button.callback('📖 Ver Guía de Lavado', 'guia_lavado')],
+        [Markup.button.callback('❓ Preguntas Frecuentes', 'faq')],
+        [Markup.button.callback('🚨 EMERGENCIA', 'emergencia')]
+    ]));
 });
 
-// Sorteos
+bot.hears('💬 Hablar con el Tatuador', (ctx) => {
+    ctx.reply('¿Tienes una duda que no puede resolver el bot? Escríbele directamente al tatuador:', 
+    Markup.inlineKeyboard([[Markup.button.url('📩 Contacto Directo', 'https://t.me/SpicyInkk')]])); 
+});
+
+// Comando de estadísticas para el tatuador
+bot.command('stats', (ctx) => {
+    if(ctx.from.id.toString() === MI_ID) {
+        ctx.reply(`📊 ESTADÍSTICAS PARA EL TATUADOR:\n- Personas que han entrado: ${stats.visitas}\n- Fichas completadas: ${stats.fichas}`);
+    }
+});
+
+bot.action('guia_lavado', (ctx) => {
+    ctx.reply('1. Lava 3 veces al día.\n2. Seca con papel.\n3. Aplica Aquaphor.');
+});
+
+bot.action('faq', (ctx) => {
+    ctx.reply('• Mínimo: 60€\n• Edad: +18\n• Citas: El tatuador requiere fianza previa.');
+});
+
+bot.action('emergencia', (ctx) => {
+    ctx.reply('🚨 Si notas fiebre o infección, contacta con un médico y avisa al tatuador por privado.');
+});
+
 bot.hears('🎁 Sorteos', (ctx) => {
-    ctx.reply(
-        '🎉 **MI SORTEO ACTIVO EN TELEGRAM** 🎉\n\n' +
-        '¡Estoy de sorteo! No pierdas la oportunidad de participar.\n\n' +
-        '📅 **Fechas:** Se celebra del 5 al 10 de febrero de 2026.\n\n' +
-        '👉 **Participa aquí:** https://t.me/+bAbJXSaI4rE0YzM0\n\n' +
-        '¡Mucha suerte! 🖋️', 
-        { parse_mode: 'Markdown' }
-    );
+    ctx.reply('🎉 **SORTEO ACTIVO**\nParticipa aquí: https://t.me/+bAbJXSaI4rE0YzM0', { parse_mode: 'Markdown' });
 });
 
-// Cancelaciones
 bot.hears('📅 Huecos Libres', (ctx) => {
-    ctx.reply('⚡ **AVISO DE CANCELACIONES** ⚡\n\n¿Quieres un tatuaje pronto? Cuando tengo cancelaciones de última hora, publico los huecos en mis Stories de Instagram.\n\nSi quieres que te avise personalmente, dímelo al rellenar tu ficha en "Hablar con SpicyBot".', { parse_mode: 'Markdown' });
+    ctx.reply('⚡ Revisa el Instagram para ver si el tatuador tiene cancelaciones.');
 });
 
 // --- INICIO ---
@@ -162,5 +177,5 @@ bot.start((ctx) => irAlMenuPrincipal(ctx));
 bot.hears('🔥 Hablar con SpicyBot', (ctx) => ctx.scene.enter('tattoo-wizard'));
 bot.hears('💡 Consultar Ideas', (ctx) => ctx.scene.enter('ideas-scene'));
 
-bot.launch().then(() => console.log('✅ SpicyBot Operativo'));
+bot.launch().then(() => console.log('✅ SpicyBot Operativo - Modo Tatuador'));
 bot.catch((err) => console.error(err));
