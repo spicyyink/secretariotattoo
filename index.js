@@ -47,14 +47,19 @@ const tattooScene = new Scenes.WizardScene(
     },
     (ctx) => {
         ctx.wizard.state.formData.nombre = ctx.message.text;
-        ctx.reply('¿Eres mayor de 18 años?', Markup.keyboard([['Sí, soy mayor', 'No']]).oneTime().resize());
+        // Se añade el botón de +16 años
+        ctx.reply('¿Qué edad tienes?', Markup.keyboard([['Sí, soy mayor', '+16 años'], ['Menor de 16']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
-        if (ctx.message.text === 'No') {
-            ctx.reply('Lo siento, necesito que seas mayor de edad para tatuarte.');
+        const respuestaEdad = ctx.message.text;
+        
+        if (respuestaEdad === 'Menor de 16') {
+            ctx.reply('Lo siento, el estudio no realiza tatuajes a menores de 16 años.');
             return ctx.scene.leave();
         }
+        
+        ctx.wizard.state.formData.edad = respuestaEdad;
         ctx.reply('¿Sufres de alergias o tomas alguna medicación?', 
             Markup.keyboard([['No, todo bien'], ['Sí (especificar)', 'No lo sé']]).oneTime().resize());
         return ctx.wizard.next();
@@ -97,7 +102,7 @@ const tattooScene = new Scenes.WizardScene(
         let photoId = ctx.message.photo ? ctx.message.photo[ctx.message.photo.length - 1].file_id : null;
         await ctx.reply('¡Ficha enviada! Revisaré tu caso y te contactaré pronto.', Markup.removeKeyboard());
 
-        const ficha = `🖋️ NUEVA SOLICITUD\n\n👤 Nombre: ${d.nombre}\n🏥 Salud: ${d.salud}\n📞 WhatsApp: ${d.telefono}\n💡 Idea: ${d.idea}\n📏 Tamaño: ${d.tamano}\n🩹 Piel: ${d.piel}\n🕒 Horario: ${d.horario}`;
+        const ficha = `🖋️ NUEVA SOLICITUD\n\n👤 Nombre: ${d.nombre}\n🔞 Edad: ${d.edad}\n🏥 Salud: ${d.salud}\n📞 WhatsApp: ${d.telefono}\n💡 Idea: ${d.idea}\n📏 Tamaño: ${d.tamano}\n🩹 Piel: ${d.piel}\n🕒 Horario: ${d.horario}`;
         
         await ctx.telegram.sendMessage(MI_ID, ficha, {
             ...Markup.inlineKeyboard([[Markup.button.url('💬 Abrir WhatsApp', `https://wa.me/${d.telefono.replace(/\D/g, '')}`)]])
