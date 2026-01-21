@@ -20,13 +20,14 @@ server.listen(PORT, () => console.log(`Servidor en puerto ${PORT}`));
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const MI_ID = process.env.MI_ID;
 
-// --- SISTEMA DE CLAVES DE UN SOLO USO ---
+// --- SISTEMA DE CLAVES DE UN SOLO USO (Ahora 6 claves) ---
 let CLAVES_DISPONIBLES = [
     'test.spicy.01', 
     'test-spicy-02', 
     'spicy.test.03', 
     'spicy-test-04', 
-    'spicy.test-05'
+    'spicy.test-05',
+    'test-spicy.06'
 ];
 const usuariosAutorizados = new Set(); // Guarda los IDs de quienes ya pusieron la clave
 
@@ -136,11 +137,9 @@ function irAlMenuPrincipal(ctx) {
 
 // --- LÓGICA DE ACCESO (START) ---
 bot.start((ctx) => {
-    // Si ya validó su clave antes, entra directo
     if (usuariosAutorizados.has(ctx.from.id)) {
         return irAlMenuPrincipal(ctx);
     }
-    // Si no, le pedimos la clave
     ctx.reply('🔒 ACCESO RESTRINGIDO.\nIntroduce una clave de tester de un solo uso para continuar:');
 });
 
@@ -149,23 +148,17 @@ bot.on('text', (ctx, next) => {
     const userId = ctx.from.id;
     const texto = ctx.message.text.toLowerCase();
 
-    // 1. Permitir si el usuario ya está en la lista de autorizados
     if (usuariosAutorizados.has(userId)) {
         return next();
     }
 
-    // 2. Si el texto es una de las claves disponibles
     if (CLAVES_DISPONIBLES.includes(texto)) {
-        // Eliminar esa clave específica de la lista (un solo uso)
         CLAVES_DISPONIBLES = CLAVES_DISPONIBLES.filter(c => c !== texto);
-        // Agregar al usuario a la lista de permitidos
         usuariosAutorizados.add(userId);
-        
         ctx.reply('✅ Clave aceptada. Esta clave ha quedado desactivada para otros usuarios.');
         return irAlMenuPrincipal(ctx);
     }
 
-    // 3. Si no es autorizado y no puso clave válida
     return ctx.reply('❌ Clave incorrecta o ya utilizada. Introduce una clave válida para testear.');
 });
 
@@ -185,7 +178,7 @@ bot.hears('💬 Hablar con el Tatuador', (ctx) => {
 
 bot.command('stats', (ctx) => {
     if(ctx.from.id.toString() === MI_ID) {
-        ctx.reply(`📊 STATS TEST:\n- Visitas: ${stats.visitas}\n- Fichas: ${stats.fichas}\n- Claves restantes: ${CLAVES_DISPONIBLES.length}`);
+        ctx.reply(`📊 STATS TEST:\n- Visitas: ${stats.visitas}\n- Fichas: ${stats.fichas}\n- Claves restantes: ${CLAVES_DISPONIBLES.length}\n- Claves disponibles: ${CLAVES_DISPONIBLES.join(', ')}`);
     }
 });
 
