@@ -4,7 +4,7 @@ const { Telegraf, Scenes, session, Markup } = require('telegraf');
 const http = require('http');
 
 // ==========================================
-// SERVIDOR DE SALUD (Mantener vivo)
+// SERVIDOR DE SALUD (Mantiene el bot vivo)
 // ==========================================
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -15,7 +15,7 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Servidor en puerto ${PORT}`));
 
 // ==========================================
-// CONFIGURACIÓN
+// CONFIGURACIÓN DEL BOT
 // ==========================================
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const MI_ID = process.env.MI_ID;
@@ -37,7 +37,7 @@ const ideasScene = new Scenes.WizardScene(
     }
 );
 
-// --- ESCENA DE PRESUPUESTO (TEXTO LIMPIO) ---
+// --- ESCENA DE PRESUPUESTO (FORMULARIO) ---
 const tattooScene = new Scenes.WizardScene(
     'tattoo-wizard',
     (ctx) => {
@@ -108,21 +108,52 @@ const tattooScene = new Scenes.WizardScene(
     }
 );
 
+// --- MENÚ PRINCIPAL ---
 function irAlMenuPrincipal(ctx) {
-    return ctx.reply('Bienvenido a Spicy Inkk 🖋️', 
-        Markup.keyboard([['🔥 Hablar con SpicyBot'], ['💡 Consultar Ideas', '🧼 Cuidados']]).oneTime().resize());
+    return ctx.reply('Bienvenido a Spicy Inkk 🖋️\n¿En qué puedo ayudarte?', 
+        Markup.keyboard([
+            ['🔥 Hablar con SpicyBot'],
+            ['💡 Consultar Ideas', '🧼 Cuidados'],
+            ['🎁 Sorteos', '📅 Huecos Libres']
+        ]).oneTime().resize());
 }
 
+// --- LÓGICA DE BOTONES ---
+
+// Cuidados
 bot.hears('🧼 Cuidados', (ctx) => {
-    ctx.reply('Cuidados:\n1. Lava con jabón neutro.\n2. Hidrata con crema.\n3. Evita sol y piscinas 15 días.');
+    const texto = '✨ **GUÍA PROFESIONAL DE CUIDADOS** ✨\n\n' +
+        '1. **LAVA**: 3 veces al día con jabón neutro y agua tibia.\n' +
+        '2. **SECA**: Siempre con papel de cocina a toques, nunca con toalla.\n' +
+        '3. **HIDRATA**: Aplica una capa muy fina de crema específica.\n' +
+        '4. **PROHIBIDO**: Sol, piscinas, playa y rascar las costras por 15 días.\n\n' +
+        '----------------------------------\n' +
+        '✨ **RECOMENDACIÓN DE CREMAS** ✨\n\n' +
+        '✅ **Aquaphor (Eucerin)**: Nuestra favorita. Repara la piel sin obstruir el poro.\n' +
+        '✅ **Bepanthol Tatuaje**: Opción clásica con provitamina B5.\n' +
+        '⚠️ **Nivea**: Usar con precaución. Es preferible comprar las anteriores para asegurar el mejor acabado.\n\n' +
+        'Si tienes dudas o notas inflamación excesiva, escríbenos.';
+    ctx.reply(texto, { parse_mode: 'Markdown' });
 });
 
+// Sorteos
+bot.hears('🎁 Sorteos', (ctx) => {
+    ctx.reply('🎉 **SORTEOS ACTIVOS** 🎉\n\nActualmente no hay sorteos vigentes.\n\nSuelo realizar sorteos de sesiones gratis o descuentos en mi Instagram. ¡Mantente atento! 🖋️', { parse_mode: 'Markdown' });
+});
+
+// Cancelaciones
+bot.hears('📅 Huecos Libres', (ctx) => {
+    ctx.reply('⚡ **AVISO DE CANCELACIONES** ⚡\n\n¿Quieres un tatuaje pronto? Cuando hay cancelaciones de última hora, publico los huecos en mis Stories de Instagram.\n\nSi quieres que te avise personalmente, dímelo al rellenar tu ficha en "Hablar con SpicyBot".', { parse_mode: 'Markdown' });
+});
+
+// --- INICIO ---
 const stage = new Scenes.Stage([tattooScene, ideasScene]);
 bot.use(session());
 bot.use(stage.middleware());
+
 bot.start((ctx) => irAlMenuPrincipal(ctx));
 bot.hears('🔥 Hablar con SpicyBot', (ctx) => ctx.scene.enter('tattoo-wizard'));
 bot.hears('💡 Consultar Ideas', (ctx) => ctx.scene.enter('ideas-scene'));
 
-bot.launch().then(() => console.log('✅ SpicyBot Online'));
+bot.launch().then(() => console.log('✅ SpicyBot Operativo'));
 bot.catch((err) => console.error(err));
