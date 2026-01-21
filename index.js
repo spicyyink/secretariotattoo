@@ -4,15 +4,22 @@ const { Telegraf, Scenes, session, Markup } = require('telegraf');
 const http = require('http');
 
 // ==========================================
-// 2. SERVIDOR PARA MANTENER VIVO (Render)
+// 2. SERVIDOR PARA MANTENER VIVO (Optimizado para Render)
 // ==========================================
-http.createServer((req, res) => {
-    res.writeHead(200);
+const server = http.createServer((req, res) => {
+    console.log(`Petición recibida de: ${req.url} - Manteniendo bot despierto ⚡`);
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('SpicyBot está online ✅');
-}).listen(process.env.PORT || 3000);
+});
+
+// Render asigna un puerto automáticamente en process.env.PORT
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Servidor de salud escuchando en el puerto ${PORT}`);
+});
 
 // ==========================================
-// 3. CONFIGURACIÓN SEGURA (Sin números a la vista)
+// 3. CONFIGURACIÓN SEGURA
 // ==========================================
 const BOT_TOKEN = process.env.BOT_TOKEN; 
 const MI_ID = process.env.MI_ID;
