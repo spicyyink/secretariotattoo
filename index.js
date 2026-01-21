@@ -1,5 +1,4 @@
 require('dotenv').config();
-
 const { Telegraf, Scenes, session, Markup } = require('telegraf');
 const http = require('http');
 
@@ -8,49 +7,37 @@ const http = require('http');
 // ==========================================
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('SpicyBot está online ✅');
+    res.end('SpicyBot Engine v2.0 - Online ✅');
 });
+server.listen(process.env.PORT || 3000, () => console.log('🚀 Sistema Profesional SpicyBot Iniciado'));
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Servidor en puerto ${PORT}`));
-
-// ==========================================
-// CONFIGURACIÓN DEL BOT Y SEGURIDAD
-// ==========================================
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const MI_ID = process.env.MI_ID;
 
-// --- SISTEMA DE CLAVES DE UN SOLO USO (6 Claves Cortas) ---
+// --- SEGURIDAD & CRONOMETRÍA ---
 let CLAVES_DISPONIBLES = ['s7p', 'k82', 'x9w', 'n4m', 'v2t', 'b5z'];
-const usuariosAutorizados = new Map(); // Guardamos ID y el tiempo (ms) en que empezaron
-
+const usuariosAutorizados = new Map(); 
 let stats = { visitas: 0, fichas: 0 };
 
-// --- ESCENA DE FEEDBACK (CRÍTICA) ---
+// ==========================================
+// ESCENAS PROFESIONALES
+// ==========================================
+
+// --- 1. ESCENA DE VALORACIÓN (FEEDBACK) ---
 const feedbackScene = new Scenes.WizardScene(
     'feedback-scene',
     (ctx) => {
-        ctx.reply('🙏 ¡Datos guardados! ¿Quieres enviar tu valoración de tester ahora o prefieres seguir testeando?',
-            Markup.keyboard([['📝 Enviar valoración ahora'], ['🔍 Seguir testeando']]).oneTime().resize());
-        return ctx.wizard.next();
-    },
-    (ctx) => {
-        if (ctx.message.text && ctx.message.text.includes('Seguir testeando')) {
-            ctx.reply('¡Perfecto! Sigue revisando el bot. El cronómetro sigue contando.');
-            irAlMenuPrincipal(ctx);
-            return ctx.scene.leave();
-        }
-        ctx.reply('1/3 ¿Has encontrado algún fallo o error técnico?');
+        ctx.reply('🛠 ANÁLISIS DE ERRORES\n¿Has detectado algún fallo, botón roto o error de texto durante tu prueba?');
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.errores = ctx.message.text;
-        ctx.reply('2/3 ¿Qué cambiarías o añadirías para mejorar la experiencia?');
+        ctx.reply('💡 PROPUESTA DE MEJORA\n¿Qué añadirías o cambiarías para que el bot sea más profesional?');
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.mejoras = ctx.message.text;
-        ctx.reply('3/3 Valoración general del 1 al 10:', 
+        ctx.reply('⭐ VALORACIÓN FINAL\n¿Qué nota le das a la experiencia general?', 
             Markup.keyboard([['1','2','3','4','5'],['6','7','8','9','10']]).oneTime().resize());
         return ctx.wizard.next();
     },
@@ -60,176 +47,159 @@ const feedbackScene = new Scenes.WizardScene(
         const inicio = usuariosAutorizados.get(ctx.from.id);
         const tiempoTotal = inicio ? Math.round((Date.now() - inicio) / 1000 / 60) : 0; 
 
-        const reporte = `📊 **FEEDBACK TESTER**\n👤 User: @${ctx.from.username || 'Sin alias'}\n⏱️ Tiempo: ${tiempoTotal} min\n❌ Errores: ${data.errores}\n💡 Mejoras: ${data.mejoras}\n⭐ Nota: ${nota}`;
+        const reporte = `📊 INFORME DE TESTER PROFESIONAL\n\nUsuario: @${ctx.from.username || 'Sin alias'}\nTiempo: ${tiempoTotal} min\nErrores: ${data.errores}\nMejoras: ${data.mejoras}\nNota: ${nota}/10`;
         
         await ctx.telegram.sendMessage(MI_ID, reporte);
-        await ctx.reply(`✅ ¡Testeo enviado! Has dedicado ${tiempoTotal} min. Gracias por tu seriedad.`, Markup.removeKeyboard());
-        return ctx.scene.leave();
+        await ctx.reply(`✅ Análisis enviado con éxito!\n\nHas dedicado ${tiempoTotal} minutos de testeo. Gracias por tu ayuda, hablamos pronto en el estudio. 🖋️`);
+        return irAlMenuPrincipal(ctx);
     }
 );
 
-// --- ESCENA DE IDEAS ---
-const ideasScene = new Scenes.WizardScene(
-    'ideas-scene',
-    (ctx) => {
-        ctx.reply('¿En qué zona estás pensando?',
-            Markup.keyboard([['Rodilla', 'Codo', 'Cuello'], ['Tríceps', 'Bíceps', 'Antebrazo'], ['⬅️ Volver']]).oneTime().resize());
-        return ctx.wizard.next();
-    },
-    (ctx) => {
-        const zona = ctx.message.text ? ctx.message.text.toLowerCase() : '';
-        if (zona.includes('volver')) return irAlMenuPrincipal(ctx);
-        ctx.reply('🌟 Mi consejo: Para esa zona busca algo que fluya con tu anatomía.');
-        setTimeout(() => irAlMenuPrincipal(ctx), 1500);
-        return ctx.scene.leave();
-    }
-);
-
-// --- ESCENA DE PRESUPUESTO (FORMULARIO) ---
+// --- 2. ESCENA DE TATUAJE (Lógica de +16 actualizada) ---
 const tattooScene = new Scenes.WizardScene(
     'tattoo-wizard',
     (ctx) => {
-        ctx.reply('¡Hola! Soy SpicyBot, tu asistente personal.\n\n¿Cómo te llamas?');
+        ctx.reply('👋 ASISTENTE DE CITAS\n\n¿Cuál es tu nombre completo?');
         ctx.wizard.state.formData = { user: ctx.from.username ? `@${ctx.from.username}` : 'Sin alias' };
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.formData.nombre = ctx.message.text;
-        ctx.reply('¿Eres mayor de 18 años?', Markup.keyboard([['Sí, soy mayor', 'No']]).oneTime().resize());
+        ctx.reply('🔞 Edad del cliente:', 
+            Markup.keyboard([['Soy mayor de 18', 'Tengo entre 16 y 18'], ['Menor de 16']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
-        if (ctx.message.text === 'No') {
-            ctx.reply('Lo siento, necesito que seas mayor de edad para tatuarte.');
+        const edad = ctx.message.text;
+        if (edad === 'Menor de 16') {
+            ctx.reply('🚫 Aviso: Spicy Inkk no realiza tatuajes a menores de 16 años.');
             return ctx.scene.leave();
         }
-        ctx.reply('¿Sufres de alergias o tomas alguna medicación?', 
-            Markup.keyboard([['No, todo bien'], ['Sí (especificar)', 'No lo sé']]).oneTime().resize());
+        if (edad === 'Tengo entre 16 y 18') {
+            ctx.reply('📝 Nota: Podrás tatuarte, pero recuerda que necesitaremos una autorización firmada por tus padres el día de la cita.');
+        }
+        ctx.wizard.state.formData.edad = edad;
+        ctx.reply('🏥 SALUD:\n¿Tienes alergias o tomas medicación?', 
+            Markup.keyboard([['No, todo bien'], ['Sí (especificar)']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.formData.salud = ctx.message.text;
-        ctx.reply('¿Cuál es tu número de teléfono?', Markup.removeKeyboard());
+        ctx.reply('📞 CONTACTO:\nIndica tu número de WhatsApp:', Markup.removeKeyboard());
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.formData.telefono = ctx.message.text;
-        ctx.reply('¿Qué diseño tienes en mente?');
+        ctx.reply('🖋️ DISEÑO:\nExplica tu idea de tatuaje:');
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.formData.idea = ctx.message.text;
-        ctx.reply('¿Qué tamaño aproximado quieres en cm?', 
-            Markup.keyboard([['No lo sé, prefiero que me asesores']]).oneTime().resize());
-        return ctx.wizard.next();
-    },
-    (ctx) => {
-        ctx.wizard.state.formData.tamano = ctx.message.text;
-        ctx.reply('¿Tienes cicatrices o lunares en esa zona?', 
-            Markup.keyboard([['Piel limpia', 'Tengo cicatrices/lunares']]).oneTime().resize());
-        return ctx.wizard.next();
-    },
-    (ctx) => {
-        ctx.wizard.state.formData.piel = ctx.message.text;
-        ctx.reply('¿Qué horario prefieres para tu cita?', 
-            Markup.keyboard([['Mañanas', 'Tardes'], ['Cualquier horario']]).oneTime().resize());
-        return ctx.wizard.next();
-    },
-    (ctx) => {
-        ctx.wizard.state.formData.horario = ctx.message.text;
-        ctx.reply('Envíame una foto de referencia o de la zona:', Markup.keyboard([['❌ No tengo foto']]).oneTime().resize());
+        ctx.reply('📸 FOTO:\nEnvíame una referencia (o pulsa el botón si no tienes):', Markup.keyboard([['❌ Sin foto']]).oneTime().resize());
         return ctx.wizard.next();
     },
     async (ctx) => {
-        const d = ctx.wizard.state.formData;
         let photoId = ctx.message.photo ? ctx.message.photo[ctx.message.photo.length - 1].file_id : null;
         stats.fichas++;
-
-        await ctx.reply('¡Ficha enviada! Ahora pasamos a tu valoración de tester.');
-
-        const ficha = `🖋️ SOLICITUD TESTER\n👤 Nombre: ${d.nombre}\n🏥 Salud: ${d.salud}\n📞 WhatsApp: ${d.telefono}\n💡 Idea: ${d.idea}`;
+        await ctx.reply('🚀 Ficha técnica enviada correctamente.');
+        
+        const d = ctx.wizard.state.formData;
+        const ficha = `🖋️ NUEVA FICHA\nNombre: ${d.nombre}\nEdad: ${d.edad}\nIdea: ${d.idea}`;
         await ctx.telegram.sendMessage(MI_ID, ficha);
         if (photoId) await ctx.telegram.sendPhoto(MI_ID, photoId);
 
-        return ctx.scene.enter('feedback-scene'); 
+        return irAlMenuPrincipal(ctx);
     }
 );
 
-// --- MENÚ PRINCIPAL ---
+// --- 3. ESCENA DE IDEAS ---
+const ideasScene = new Scenes.WizardScene(
+    'ideas-scene',
+    (ctx) => {
+        ctx.reply('✨ ZONA DEL CUERPO\n¿En qué zona estás pensando?',
+            Markup.keyboard([['Rodilla', 'Codo', 'Cuello'], ['Brazo', 'Pierna', 'Espalda'], ['⬅️ Volver']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        if (ctx.message.text === '⬅️ Volver') return irAlMenuPrincipal(ctx);
+        ctx.reply('🌟 Consejo: Busca diseños que fluyan con la anatomía de esa zona.');
+        setTimeout(() => irAlMenuPrincipal(ctx), 1500);
+        return ctx.scene.leave();
+    }
+);
+
+// ==========================================
+// LÓGICA DE NAVEGACIÓN
+// ==========================================
+
 function irAlMenuPrincipal(ctx) {
     stats.visitas++;
-    return ctx.reply('🔥 MODO TESTER ACTIVO\nAnaliza todo con calma. El tiempo se está registrando.', 
+    return ctx.reply('💎 SPICY INKK - MENÚ\n\nSelecciona una opción para probar el sistema. Cuando termines tu prueba, usa el botón de valoración.', 
         Markup.keyboard([
             ['🔥 Hablar con SpicyBot'],
             ['💡 Consultar Ideas', '🧼 Cuidados'],
             ['🎁 Sorteos', '📅 Huecos Libres'],
-            ['💬 Hablar con el Tatuador']
-        ]).oneTime().resize());
+            ['💬 Tatuador', '⭐ Valoración Tester']
+        ]).resize());
 }
 
-// --- LÓGICA DE ACCESO CORREGIDA (EXCEPCIÓN PARA TI) ---
 bot.start((ctx) => {
     const userId = ctx.from.id.toString();
-    // Si eres tú O el usuario ya está autorizado, entra directo
     if (userId === MI_ID || usuariosAutorizados.has(ctx.from.id)) {
         if (!usuariosAutorizados.has(ctx.from.id)) usuariosAutorizados.set(ctx.from.id, Date.now());
         return irAlMenuPrincipal(ctx);
     }
-    ctx.reply('🔒 ACCESO RESTRINGIDO.\nIntroduce una clave corta de tester para continuar:');
+    ctx.reply('🔒 ACCESO RESTRINGIDO\n\nIntroduce tu clave de un solo uso para desbloquear el bot:');
 });
 
 bot.on('text', (ctx, next) => {
     const userId = ctx.from.id;
     const texto = ctx.message.text.toLowerCase().trim();
-
-    // Dejar pasar si eres tú, si ya estás autorizado o si estás dentro de una escena
-    if (userId.toString() === MI_ID || usuariosAutorizados.has(userId) || ctx.scene.current) {
-        return next();
-    }
-
+    if (userId.toString() === MI_ID || usuariosAutorizados.has(userId) || ctx.scene.current) return next();
     if (CLAVES_DISPONIBLES.includes(texto)) {
         CLAVES_DISPONIBLES = CLAVES_DISPONIBLES.filter(c => c !== texto);
         usuariosAutorizados.set(userId, Date.now()); 
-        ctx.reply('✅ Clave aceptada. ¡Bienvenido al test!');
+        ctx.reply('✅ Acceso concedido. Cronómetro iniciado.');
         return irAlMenuPrincipal(ctx);
     }
-
-    return ctx.reply('❌ Clave incorrecta. Introduce una clave válida para testear.');
+    return ctx.reply('❌ Clave inválida.');
 });
 
-// --- LÓGICA DE BOTONES ---
+// Middlewares
 const stage = new Scenes.Stage([tattooScene, ideasScene, feedbackScene]);
 bot.use(session());
 bot.use(stage.middleware());
 
+// --- ACCIONES DE BOTONES ---
+bot.hears('🔥 Hablar con SpicyBot', (ctx) => ctx.scene.enter('tattoo-wizard'));
+bot.hears('💡 Consultar Ideas', (ctx) => ctx.scene.enter('ideas-scene'));
+bot.hears('⭐ Valoración Tester', (ctx) => ctx.scene.enter('feedback-scene'));
+
 bot.hears('🧼 Cuidados', (ctx) => {
-    ctx.reply('✨ **GUÍA DE CUIDADOS** ✨', Markup.inlineKeyboard([
-        [Markup.button.callback('📖 Ver Guía de Lavado', 'guia_lavado')],
-        [Markup.button.callback('❓ Preguntas Frecuentes', 'faq')],
-        [Markup.button.callback('🚨 EMERGENCIA', 'emergencia')]
+    ctx.reply('✨ PROTOCOLOS POST-TATTOO', Markup.inlineKeyboard([
+        [Markup.button.callback('📖 Guía Lavado', 'lavado')],
+        [Markup.button.callback('🚨 Emergencia', 'emergencia')]
     ]));
 });
 
-bot.hears('💬 Hablar con el Tatuador', (ctx) => {
-    ctx.reply('Contacto directo:', 
-    Markup.inlineKeyboard([[Markup.button.url('📩 Contacto Directo', 'https://t.me/SpicyInkk')]])); 
+bot.hears('🎁 Sorteos', (ctx) => {
+    ctx.reply('🔥 SORTEO ACTIVO\n\nFecha: Del 05 al 10 de febrero de 2026.\nLink participación:',
+    Markup.inlineKeyboard([[Markup.button.url('🔗 Entrar al Sorteo', 'https://t.me/+bAbJXSaI4rE0YzM0')]]));
 });
+
+bot.hears('💬 Tatuador', (ctx) => {
+    ctx.reply('📩 Contacto directo: @SpicyInkk'); 
+});
+
+bot.hears('📅 Huecos Libres', (ctx) => ctx.reply('🗓️ Consulta las Stories de Instagram para ver huecos actuales.'));
+
+bot.action('lavado', (ctx) => ctx.reply('Lavar 3 veces al día con jabón neutro y aplicar crema fina.'));
+bot.action('emergencia', (ctx) => ctx.reply('Si notas infección, contacta urgente a @SpicyInkk.'));
 
 bot.command('stats', (ctx) => {
     if(ctx.from.id.toString() === MI_ID) {
-        ctx.reply(`📊 STATS TEST:\n- Visitas: ${stats.visitas}\n- Fichas: ${stats.fichas}\n- Testers activos: ${usuariosAutorizados.size}\n- Claves libres: ${CLAVES_DISPONIBLES.join(', ')}`);
+        ctx.reply(`📊 STATS\nTesters: ${usuariosAutorizados.size}\nClaves: ${CLAVES_DISPONIBLES.join(', ')}`);
     }
 });
 
-bot.action('guia_lavado', (ctx) => ctx.reply('1. Lava 3 veces al día.\n2. Seca con papel.\n3. Aplica Aquaphor.'));
-bot.action('faq', (ctx) => ctx.reply('• Mínimo: 60€\n• Edad: +18'));
-bot.action('emergencia', (ctx) => ctx.reply('🚨 Si notas infección, avisa al tatuador.'));
-
-bot.hears('🎁 Sorteos', (ctx) => ctx.reply('Sorteo activo en Telegram.'));
-bot.hears('📅 Huecos Libres', (ctx) => ctx.reply('Revisa Stories de Instagram.'));
-
-bot.hears('🔥 Hablar con SpicyBot', (ctx) => ctx.scene.enter('tattoo-wizard'));
-bot.hears('💡 Consultar Ideas', (ctx) => ctx.scene.enter('ideas-scene'));
-
-bot.launch().then(() => console.log('✅ SpicyBot Operativo - Modo Tester con Cronómetro'));
-bot.catch((err) => console.error(err));
+bot.launch().then(() => console.log('✅ SpicyBot Pro Operativo (+16 habilitado)'));
