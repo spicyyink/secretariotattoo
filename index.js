@@ -58,10 +58,17 @@ function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
     if (zonasCriticas.some(z => zonaLow.includes(z))) pluses.push("Dificultad de Zona Anatómica");
 
     if (tieneFoto) pluses.push("Carga de detalle analizada en referencia 🖼️");
-    else pluses.push("Sin referencia visual (Presupuesto sujeto a cambios)");
+    else pluses.push("Sin referencia visual (Sujeto a cambios)");
 
-    if (pluses.length > 0) return `Estimado base: ${estimado}\n⚠️ FACTORES DE AJUSTE:\n└ ${pluses.join("\n└ ")}`;
-    return `Estimado: ${estimado}`;
+    let base = `Estimado base: ${estimado}`;
+    if (pluses.length > 0) {
+        base += `\n⚠️ FACTORES DE AJUSTE:\n└ ${pluses.join("\n└ ")}`;
+    }
+    
+    // NOTA OBLIGATORIA SOBRE EL ROBOT
+    base += `\n\n📢 **AVISO:** Este presupuesto ha sido generado automáticamente por un robot con fines puramente orientativos. El precio real y definitivo será estipulado únicamente por el tatuador tras revisar personalmente el diseño final.`;
+    
+    return base;
 }
 
 // ==========================================
@@ -150,15 +157,14 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
         const d = ctx.wizard.state.f;
         d.telefono = ctx.message.text.replace(/\s+/g, '');
         const estimacion = calcularPresupuesto(d.tamano, d.zona, d.estilo, d.tieneFoto);
-        await ctx.reply(`✅ SOLICITUD ENVIADA\n━━━━━━━━━━━━━━━━━━━━\n🤖 **ANÁLISIS DE PRESUPUESTO:**\n> ${estimacion}`);
-        const fichaAdmin = `🖋️ CITA\n👤 ${d.nombre}\n📍 ${d.zona}\n📏 ${d.tamano}\n🎨 ${d.estilo}\n💰 ${estimacion.replace(/\n/g, ' ')}\n📞 WA: ${d.telefono}`;
+        await ctx.reply(`✅ SOLICITUD ENVIADA\n━━━━━━━━━━━━━━━━━━━━\n${estimacion}`);
+        const fichaAdmin = `🖋️ CITA\n👤 ${d.nombre}\n📍 ${d.zona}\n📏 ${d.tamano}\n🎨 ${d.estilo}\n💰 Estimado: ${estimacion.split('\n')[0]}\n📞 WA: ${d.telefono}`;
         await ctx.telegram.sendMessage(MI_ID, fichaAdmin, Markup.inlineKeyboard([[Markup.button.url('📲 CONTACTAR', `https://wa.me/${d.telefono}`)]]));
         if (d.foto) await ctx.telegram.sendPhoto(MI_ID, d.foto);
         return ctx.scene.leave();
     }
 );
 
-// --- ESCENA IDEAS ---
 const ideasScene = new Scenes.WizardScene('ideas-scene',
     (ctx) => {
         ctx.reply('💡 A S E S O R Í A\n━━━━━━━━━━━━━━━━━━━━\nSelecciona una zona:', 
