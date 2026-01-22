@@ -97,7 +97,7 @@ const ideasScene = new Scenes.WizardScene('ideas-scene',
     }
 );
 
-// --- ESCENA TATTOO (FORMULARIO ACTUALIZADO) ---
+// --- ESCENA TATTOO (CON TELÉFONO Y BOTÓN WHATSAPP) ---
 const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     (ctx) => { ctx.reply('📝 1️⃣ ¿Cómo te llamas?'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('2️⃣ ¿Edad?', Markup.keyboard([['+18 años', '+16 años'], ['Menor de 16']]).oneTime().resize()); return ctx.wizard.next(); },
@@ -113,11 +113,15 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     (ctx) => { ctx.wizard.state.f.salud = ctx.message.text; ctx.reply('8️⃣ ¿Piel (Cicatrices/Lunares)?'); return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.f.piel = ctx.message.text; ctx.reply('9️⃣ ¿Horario?'); return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.f.horario = ctx.message.text; ctx.reply('🔟 Envía FOTO o escribe "No tengo":'); return ctx.wizard.next(); },
+    (ctx) => {
+        ctx.wizard.state.f.foto = ctx.message.photo ? ctx.message.photo[ctx.message.photo.length - 1].file_id : null;
+        ctx.reply('1️⃣1️⃣ ¿Tu número de WhatsApp? (Ej: 34600000000)');
+        return ctx.wizard.next();
+    },
     async (ctx) => {
         const d = ctx.wizard.state.f;
-        let photo = ctx.message.photo ? ctx.message.photo[ctx.message.photo.length - 1].file_id : null;
+        d.telefono = ctx.message.text.replace(/\s+/g, ''); // Limpiar espacios del número
         
-        // FICHA CON EL FORMATO DE TUS CAPTURAS
         const fichaAdmin = `🖋️ **NUEVA SOLICITUD**\n\n` +
             `👤 **Nombre:** ${d.nombre}\n` +
             `🔞 **Edad:** ${d.edad}\n` +
@@ -127,11 +131,18 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
             `📏 **Tam:** ${d.tamano}\n` +
             `🏥 **Salud:** ${d.salud}\n` +
             `🩹 **Piel:** ${d.piel}\n` +
-            `🕒 **Horario:** ${d.horario}`;
+            `🕒 **Horario:** ${d.horario}\n` +
+            `📞 **WhatsApp:** ${d.telefono}`;
 
         await ctx.reply('✅ Recibido. Revisaremos tu solicitud pronto.');
-        await ctx.telegram.sendMessage(MI_ID, fichaAdmin, { parse_mode: 'Markdown' });
-        if (photo) await ctx.telegram.sendPhoto(MI_ID, photo);
+        
+        // Botón para que el Admin vaya directo al WhatsApp
+        const keyboard = Markup.inlineKeyboard([
+            [Markup.button.url('📲 ABRIR WHATSAPP', `https://wa.me/${d.telefono}`)]
+        ]);
+
+        await ctx.telegram.sendMessage(MI_ID, fichaAdmin, { parse_mode: 'Markdown', ...keyboard });
+        if (d.foto) await ctx.telegram.sendPhoto(MI_ID, d.foto);
         
         ctx.scene.leave(); return irAlMenuPrincipal(ctx);
     }
