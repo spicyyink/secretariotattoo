@@ -4,7 +4,7 @@ const http = require('http');
 const fs = require('fs');
 
 // ==========================================
-// 1. SERVIDOR (Mantiene a Render despierto)
+// 1. SERVIDOR
 // ==========================================
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -15,7 +15,6 @@ server.listen(process.env.PORT || 3000);
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const MI_ID = process.env.MI_ID; 
 
-// Función auxiliar para obtener el enlace al chat privado
 const getUserLink = (ctx) => {
     const user = ctx.from;
     if (user.username) return `@${user.username}`;
@@ -37,12 +36,15 @@ function guardar() {
 }
 
 function irAlMenuPrincipal(ctx) {
-    return ctx.reply('🔥 MENÚ PRINCIPAL 🔥\nElige una opción:',
-        Markup.keyboard([
-            ['🔥 Hablar con el Tatuador', '💉 Minar Tinta'],
-            ['💡 Consultar Ideas', '👥 Mis Referidos'],
-            ['🧼 Cuidados', '🎁 Sorteos']
-        ]).resize()
+    return ctx.reply('✨ <b>S P I C Y  I N K</b> ✨\n━━━━━━━━━━━━━━━━━━━━\n<i>Gestión de citas y eventos exclusivos.</i>\n\n<b>Selecciona una opción:</b>',
+        {
+            parse_mode: 'HTML',
+            ...Markup.keyboard([
+                ['🔥 Hablar con el Tatuador', '💉 Minar Tinta'],
+                ['💡 Consultar Ideas', '👥 Mis Referidos'],
+                ['🧼 Cuidados', '🎁 Sorteos']
+            ]).resize()
+        }
     );
 }
 
@@ -56,12 +58,14 @@ mineScene.enter((ctx) => {
     const uid = ctx.from.id;
     const clics = db.clics[uid] || 0;
     bot.telegram.sendMessage(MI_ID, `⛏️ El usuario ${getUserLink(ctx)} ha entrado a MINAR TINTA.`, { parse_mode: 'HTML' });
-    ctx.reply(`⛏️ MINERÍA SPICY\n\nLlevas: ${clics}/1000 ml de tinta.\n🎁 PREMIO: REGALO TATTOO MINI 20€\n\n👇 ¡DALE CAÑA! 👇`,
-        Markup.inlineKeyboard([
+    
+    ctx.reply(`💉 <b>M I N E R Í A  D E  T I N T A</b>\n━━━━━━━━━━━━━━━━━━━━\n\n📊 <b>Estado:</b> <code>${clics} / 1000 ml</code>\n🎁 <b>Premio:</b> <code>TATTOO MINI 20€</code>\n\n<i>Pulsa el botón inferior para recolectar.</i>`, {
+        parse_mode: 'HTML',
+        ...Markup.inlineKeyboard([
             [Markup.button.callback('💉 INYECTAR TINTA', 'minar_punto')],
             [Markup.button.callback('⬅️ SALIR AL MENÚ', 'volver_menu')]
         ])
-    );
+    });
 });
 
 mineScene.action('minar_punto', async (ctx) => {
@@ -69,13 +73,15 @@ mineScene.action('minar_punto', async (ctx) => {
     db.clics[uid] = (db.clics[uid] || 0) + 1;
     guardar();
     if (db.clics[uid] >= 1000) {
-        await ctx.answerCbQuery('🏆 ¡GANASTE!');
-        await ctx.editMessageText('🎉 TANQUE LLENO (1000) 🎉\n\nHas ganado un TATTOO MINI de 20€.\nHaz captura de este mensaje y envíamela.');
+        await ctx.answerCbQuery('🏆 ¡OBJETIVO LOGRADO!');
+        await ctx.editMessageText('🎉 <b>TANQUE COMPLETADO</b> 🎉\n━━━━━━━━━━━━━━━━━━━━\n\nHas recolectado <code>1000ml</code> de tinta.\n\n📸 <b>Haz captura de este mensaje</b> y envíala al Tatuador para canjear tu <b>TATTOO MINI</b>.', { parse_mode: 'HTML' });
         db.clics[uid] = 0; guardar(); return;
     }
     try {
-        await ctx.editMessageText(`⛏️ MINERÍA SPICY\n\nLlevas: ${db.clics[uid]}/1000 ml de tinta.\n🎁 PREMIO: REGALO TATTOO MINI 20€`,
-            Markup.inlineKeyboard([[Markup.button.callback('💉 INYECTAR TINTA', 'minar_punto')], [Markup.button.callback('⬅️ SALIR AL MENÚ', 'volver_menu')]]));
+        await ctx.editMessageText(`💉 <b>M I N E R Í A  D E  T I N T A</b>\n━━━━━━━━━━━━━━━━━━━━\n\n📊 <b>Estado:</b> <code>${db.clics[uid]} / 1000 ml</code>\n🎁 <b>Premio:</b> <code>TATTOO MINI 20€</code>`, {
+            parse_mode: 'HTML',
+            ...Markup.inlineKeyboard([[Markup.button.callback('💉 INYECTAR TINTA', 'minar_punto')], [Markup.button.callback('⬅️ SALIR AL MENÚ', 'volver_menu')]])
+        });
     } catch (e) {}
     return ctx.answerCbQuery();
 });
@@ -91,13 +97,16 @@ mineScene.action('volver_menu', async (ctx) => {
 const ideasScene = new Scenes.WizardScene('ideas-scene',
     (ctx) => {
         bot.telegram.sendMessage(MI_ID, `💡 El usuario ${getUserLink(ctx)} está consultando IDEAS.`, { parse_mode: 'HTML' });
-        ctx.reply('💡 CONSULTOR PROFESIONAL\nSelecciona la zona donde tienes pensado tu próximo proyecto:',
-            Markup.keyboard([
-                ['Antebrazo', 'Hombro', 'Pecho'],
-                ['Espalda', 'Cuello', 'Mano'],
-                ['Rodilla', 'Pantorrilla', 'Gemelos'],
-                ['Costillas', 'Otros', '⬅️ Volver']
-            ]).resize());
+        ctx.reply('💡 <b>A S E S O R Í A  V I S U A L</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Selecciona la zona anatómica para recibir información técnica:</i>',
+            {
+                parse_mode: 'HTML',
+                ...Markup.keyboard([
+                    ['Antebrazo', 'Hombro', 'Pecho'],
+                    ['Espalda', 'Cuello', 'Mano'],
+                    ['Rodilla', 'Pantorrilla', 'Gemelos'],
+                    ['Costillas', 'Otros', '⬅️ Volver']
+                ]).resize()
+            });
         return ctx.wizard.next();
     },
     (ctx) => {
@@ -105,21 +114,21 @@ const ideasScene = new Scenes.WizardScene('ideas-scene',
         if (!msg || msg.includes('Volver')) { ctx.scene.leave(); return irAlMenuPrincipal(ctx); }
 
         const consejos = {
-            'Antebrazo': "💪 Antebrazo/Exterior: Es una de las mejores zonas para realismo o Lettering. La visibilidad es alta y el envejecimiento del tatuaje es excelente.",
-            'Hombro': "🏹 Hombro: Zona ideal para piezas circulares o de estilo neotradicional. Permite integrar el diseño hacia la clavícula o el brazo.",
-            'Pecho': "🛡️ Pecho: Un lienzo amplio que exige diseños simétricos o composiciones de gran impacto. La zona del esternón es más sensible.",
-            'Espalda': "🦅 Espalda: Ofrece infinitas posibilidades. Recomendamos piezas de gran formato para aprovechar la anatomía y la estabilidad de la piel.",
-            'Cuello': "🔥 Cuello: Zona de alta visibilidad y estética audaz. Ideal para micro-realismo o diseños minimalistas que sigan la línea natural.",
-            'Mano': "🤚 Mano: Requiere diseños con líneas sólidas y contrastadas. Al ser una zona de mucho desgaste, el cuidado posterior es crítico.",
-            'Rodilla': "💀 Rodilla: Es un reto anatómico. Los diseños que abracen la rótula funcionan mejor mecánicamente.",
-            'Pantorrilla': "🦵 Pantorrilla: Una zona muy agradecida para el color y sombras profundas. Permite trabajar detalles sin que el diseño se deforme.",
-            'Gemelos': "⚡ Gemelos: Perfecto para diseños verticales o alargados. Es una zona muscularmente activa que da dinamismo a piezas orgánicas.",
-            'Costillas': "⚖️ Costillas: Zona de alta sensibilidad. Recomendamos diseños finos o composiciones que sigan el arco natural para estilizar la figura.",
-            'Otros': "✨ Cualquier zona es un buen lienzo: Cuéntame tu idea específica en el formulario de contacto para asesorarte personalmente."
+            'Antebrazo': "💪 <b>Antebrazo:</b> Zona de alta visibilidad. El envejecimiento en esta zona es <code>ÓPTIMO</code> por la firmeza de la piel.",
+            'Hombro': "🏹 <b>Hombro:</b> Ideal para diseños circulares. Permite una integración orgánica hacia la clavícula.",
+            'Pecho': "🛡️ <b>Pecho:</b> Gran lienzo simétrico. <i>Nota: La zona del esternón presenta mayor sensibilidad.</i>",
+            'Espalda': "🦅 <b>Espalda:</b> Máxima estabilidad. Perfecta para piezas de <code>GRAN FORMATO</code> y realismo.",
+            'Cuello': "🔥 <b>Cuello:</b> Estética audaz. Recomendamos diseños minimalistas que sigan la línea del trapecio.",
+            'Mano': "🤚 <b>Mano:</b> Requiere líneas sólidas. <i>Importante: Zona de alto desgaste por regeneración celular.</i>",
+            'Rodilla': "💀 <b>Rodilla:</b> Complejidad técnica media. Diseños geométricos que 'abracen' la rótula son ideales.",
+            'Pantorrilla': "🦵 <b>Pantorrilla:</b> Muy agradecida para el color y sombras. Poca deformación visual.",
+            'Gemelos': "⚡ <b>Gemelos:</b> La musculatura aporta dinamismo a los diseños verticales.",
+            'Costillas': "⚖️ <b>Costillas:</b> Zona elegante. El estilo <code>FINE LINE</code> es el más recomendado aquí.",
+            'Otros': "✨ <b>Consultoría:</b> Cualquier zona es apta con la composición correcta. Cuéntame tu idea."
         };
 
-        const respuesta = consejos[msg] || "✨ Selecciona una zona para recibir asesoramiento técnico.";
-        ctx.reply(respuesta);
+        const respuesta = consejos[msg] || "✨ Selecciona una opción del menú.";
+        ctx.reply(respuesta, { parse_mode: 'HTML' });
         ctx.scene.leave();
         return irAlMenuPrincipal(ctx);
     }
@@ -128,39 +137,40 @@ const ideasScene = new Scenes.WizardScene('ideas-scene',
 // --- ESCENA TATTOO ---
 const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     (ctx) => { 
-        bot.telegram.sendMessage(MI_ID, `📝 El usuario ${getUserLink(ctx)} ha empezado el FORMULARIO.`, { parse_mode: 'HTML' });
-        ctx.reply('📝¿Cómo te llamas?👋🏼'); ctx.wizard.state.f = {}; return ctx.wizard.next(); 
+        bot.telegram.sendMessage(MI_ID, `📝 El usuario ${getUserLink(ctx)} inició el FORMULARIO.`, { parse_mode: 'HTML' });
+        ctx.reply('🖋️ <b>F O R M U L A R I O</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Por favor, indica tu nombre:</i>', { parse_mode: 'HTML' }); 
+        ctx.wizard.state.f = {}; return ctx.wizard.next(); 
     },
-    (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('🔞¿Edad?🔞', Markup.keyboard([['+18 años', '+16 años'], ['Menor de 16']]).oneTime().resize()); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('🔞 <b>¿Edad?</b>', Markup.keyboard([['+18 años', '+16 años'], ['Menor de 16']]).oneTime().resize()); return ctx.wizard.next(); },
     (ctx) => {
-        if (ctx.message.text === 'Menor de 16') { ctx.reply('❌ Mínimo 16 años.'); ctx.scene.leave(); return irAlMenuPrincipal(ctx); }
+        if (ctx.message.text === 'Menor de 16') { ctx.reply('❌ <b>ERROR:</b> Mínimo 16 años.'); ctx.scene.leave(); return irAlMenuPrincipal(ctx); }
         ctx.wizard.state.f.edad = ctx.message.text;
-        ctx.reply('👤¿Zona del cuerpo?🦾', Markup.removeKeyboard()); return ctx.wizard.next();
+        ctx.reply('📍 <b>¿Zona del cuerpo?</b>', Markup.removeKeyboard()); return ctx.wizard.next();
     },
-    (ctx) => { ctx.wizard.state.f.zona = ctx.message.text; ctx.reply('💡Describe tu idea💡:'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.idea = ctx.message.text; ctx.reply('🖼️¿Estilo?🫟'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.estilo = ctx.message.text; ctx.reply('📏Tamaño cm:📐'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.tamano = ctx.message.text; ctx.reply('🫀¿Salud/Alergias?🫀💊'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.salud = ctx.message.text; ctx.reply('💉¿Piel (Cicatrices/Lunares)💉?'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.piel = ctx.message.text; ctx.reply('🌍¿Horario?📘'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.horario = ctx.message.text; ctx.reply('🎆Envía FOTO o escribe🎆•⚠️"No tengo"⚠️'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.zona = ctx.message.text; ctx.reply('💡 <b>Describe tu idea:</b>'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.idea = ctx.message.text; ctx.reply('🎨 <b>Estilo visual:</b>'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.estilo = ctx.message.text; ctx.reply('📏 <b>Tamaño (cm):</b>'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.tamano = ctx.message.text; ctx.reply('🏥 <b>¿Salud / Alergias?</b>'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.salud = ctx.message.text; ctx.reply('💉 <b>¿Cicatrices / Lunares?</b>'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.piel = ctx.message.text; ctx.reply('🕒 <b>Horario preferente:</b>'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.horario = ctx.message.text; ctx.reply('🖼️ <b>Envía FOTO de referencia</b> <i>(o escribe "No")</i>:'); return ctx.wizard.next(); },
     (ctx) => {
         ctx.wizard.state.f.foto = ctx.message.photo ? ctx.message.photo[ctx.message.photo.length - 1].file_id : null;
-        ctx.reply('📲¿Tu número de WhatsApp?📲 (Ej: 34600000000)');
+        ctx.reply('📲 <b>WhatsApp:</b> <i>(Ej: 34600000000)</i>');
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.f.telefono = ctx.message.text.replace(/\s+/g, '');
-        ctx.reply('🛜Nombre de Instagram🛜 (Opcional, escribe "No" para saltar):');
+        ctx.reply('🛜 <b>Instagram:</b> <i>(Opcional)</i>');
         return ctx.wizard.next();
     },
     async (ctx) => {
         const d = ctx.wizard.state.f;
         d.ig = ctx.message.text;
-        const fichaAdmin = `🖋️ NUEVA SOLICITUD\n\n👤 Nombre: ${d.nombre}\n🔞 Edad: ${d.edad}\n📍 Zona: ${d.zona}\n💡 Idea: ${d.idea}\n🎨 Estilo: ${d.estilo}\n📏 Tam: ${d.tamano}\n🏥 Salud: ${d.salud}\n🩹 Piel: ${d.piel}\n🕒 Horario: ${d.horario}\n📞 WhatsApp: ${d.telefono}\n📸 Instagram: ${d.ig}`;
-        await ctx.reply('✅ Recibido. El Tatuador revisará tu solicitud pronto.');
-        const keyboard = Markup.inlineKeyboard([[Markup.button.url('📲 ABRIR WHATSAPP', `https://wa.me/${d.telefono}`)]]);
-        await ctx.telegram.sendMessage(MI_ID, fichaAdmin, keyboard);
+        const fichaAdmin = `🖋️ <b>SOLICITUD RECIBIDA</b>\n\n👤 <b>User:</b> ${d.nombre}\n🔞 <b>Edad:</b> ${d.edad}\n📍 <b>Zona:</b> ${d.zona}\n💡 <b>Idea:</b> ${d.idea}\n🎨 <b>Estilo:</b> ${d.estilo}\n📏 <b>Tam:</b> ${d.tamano}\n📞 <b>WA:</b> <code>${d.telefono}</code>\n📸 <b>IG:</b> ${d.ig}`;
+        await ctx.reply('✅ <b>SOLICITUD ENVIADA</b>\n━━━━━━━━━━━━━━━━━━━━\n<i>Analizaremos tu propuesta y contactaremos contigo.</i>', { parse_mode: 'HTML' });
+        const keyboard = Markup.inlineKeyboard([[Markup.button.url('📲 CONTACTAR WHATSAPP', `https://wa.me/${d.telefono}`)]]);
+        await ctx.telegram.sendMessage(MI_ID, fichaAdmin, { parse_mode: 'HTML', ...keyboard });
         if (d.foto) await ctx.telegram.sendPhoto(MI_ID, d.foto);
         ctx.scene.leave(); return irAlMenuPrincipal(ctx);
     }
@@ -176,12 +186,11 @@ bot.start(async (ctx) => {
     if (ctx.scene) { try { await ctx.scene.leave(); } catch(e) {} }
     ctx.session = {}; 
     const payload = ctx.startPayload;
-    bot.telegram.sendMessage(MI_ID, `🚀 El usuario ${getUserLink(ctx)} ha iniciado el bot.`, { parse_mode: 'HTML' });
+    bot.telegram.sendMessage(MI_ID, `🚀 El usuario ${getUserLink(ctx)} inició el bot.`, { parse_mode: 'HTML' });
     if (payload && payload !== String(ctx.from.id) && !db.invitados[ctx.from.id]) {
         db.invitados[ctx.from.id] = parseInt(payload);
         db.referidos[payload] = (db.referidos[payload] || 0) + 1;
         guardar();
-        bot.telegram.sendMessage(MI_ID, `👥 ${getUserLink(ctx)} ha entrado como referido de la ID: ${payload}`, { parse_mode: 'HTML' });
     }
     return irAlMenuPrincipal(ctx);
 });
@@ -194,9 +203,9 @@ bot.use(stage.middleware());
 bot.action('reportar_tatuaje', async (ctx) => {
     const uid = ctx.from.id;
     const sponsorId = db.invitados[uid];
-    if (!sponsorId) return ctx.answerCbQuery('⚠️ No entraste con link de referido.', { show_alert: true });
-    await ctx.reply('✅ Reporte enviado. El Tatuador lo validará pronto.');
-    await ctx.telegram.sendMessage(MI_ID, `🔔 VALIDACIÓN PENDIENTE\n\nEl usuario ${getUserLink(ctx)} (${uid}) se ha tatuado.\n\nInvitado por: ${sponsorId}`, 
+    if (!sponsorId) return ctx.answerCbQuery('⚠️ No tienes sponsor.', { show_alert: true });
+    await ctx.reply('✅ <b>REPORTE ENVIADO</b>', { parse_mode: 'HTML' });
+    await ctx.telegram.sendMessage(MI_ID, `🔔 <b>VALIDACIÓN</b>\n\nEl usuario ${getUserLink(ctx)} se ha tatuado.\n\nSponsor ID: <code>${sponsorId}</code>`, 
         { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('✅ ACEPTAR', `v_si_${uid}_${sponsorId}`)], [Markup.button.callback('❌ RECHAZAR', `v_no_${uid}`)]]) });
 });
 
@@ -205,9 +214,9 @@ bot.action(/^v_si_(\d+)_(\d+)$/, async (ctx) => {
     const sponsorId = ctx.match[2];
     db.confirmados[sponsorId] = (db.confirmados[sponsorId] || 0) + 1;
     guardar();
-    await ctx.editMessageText(`✅ Validado. Punto para ${sponsorId}.`);
-    try { await ctx.telegram.sendMessage(amigoId, '🎉 ¡Tu tatuaje ha sido validado!'); } catch (e) {}
-    try { await ctx.telegram.sendMessage(sponsorId, `🔥 ¡Un amig@ invitado se ha tatuado! (${db.confirmados[sponsorId]}/3)`); } catch (e) {}
+    await ctx.editMessageText(`✅ <b>Validado.</b>`, { parse_mode: 'HTML' });
+    try { await ctx.telegram.sendMessage(amigoId, '🎉 <b>¡Tatuaje validado!</b>', { parse_mode: 'HTML' }); } catch (e) {}
+    try { await ctx.telegram.sendMessage(sponsorId, `🔥 <b>¡Referido confirmado!</b> (<code>${db.confirmados[sponsorId]}/3</code>)`, { parse_mode: 'HTML' }); } catch (e) {}
 });
 
 // ==========================================
@@ -221,38 +230,29 @@ bot.hears('👥 Mis Referidos', (ctx) => {
     const uid = ctx.from.id;
     const total = db.referidos[uid] || 0;
     const confirmados = db.confirmados[uid] || 0;
-    bot.telegram.sendMessage(MI_ID, `👥 El usuario ${getUserLink(ctx)} ha entrado a MIS REFERIDOS.`, { parse_mode: 'HTML' });
-    ctx.reply(`👥 ZONA SOCIOS\n\n🔗 Tu Link: https://t.me/SpicyInkBot?start=${uid}\n\n📊 Estadísticas:\n- Clics en link: ${total}\n- Amig@ Tatuado: ${confirmados}/3\n\n🎁 Premio: 50% DTO al llegar a 3 confirmados.\n\n👇 ¿Te has tatuado ya?`,
-        Markup.inlineKeyboard([[Markup.button.callback('✅ ¡ME HE TATUADO!', 'reportar_tatuaje')]])
-    );
+    bot.telegram.sendMessage(MI_ID, `👥 El usuario ${getUserLink(ctx)} entró a REFERIDOS.`, { parse_mode: 'HTML' });
+    
+    ctx.reply(`👥 <b>S O C I O S</b>\n━━━━━━━━━━━━━━━━━━━━\n\n🔗 <b>Enlace:</b> <code>https://t.me/SpicyInkBot?start=${uid}</code>\n\n📊 <b>Stats:</b>\n• Clics: <code>${total}</code>\n• Confirmados: <code>${confirmados} / 3</code>\n\n🎁 <b>Premio:</b> <code>50% DTO</code>`, {
+        parse_mode: 'HTML',
+        ...Markup.inlineKeyboard([[Markup.button.callback('✅ ¡ME HE TATUADO!', 'reportar_tatuaje')]])
+    });
 });
 
 bot.hears('🧼 Cuidados', (ctx) => {
-    ctx.reply('🧴 CUIDADOS:\n1. Jabón neutro.\n2. Bepanthol.\n3. Sin sol.');
+    ctx.reply('🧼 <b>G U Í A  D E  C U I D A D O S</b>\n━━━━━━━━━━━━━━━━━━━━\n\n1. <b>Limpieza:</b> Jabón neutro 3 veces/día.\n2. <b>Hidratación:</b> Capa fina de pomada específica.\n3. <b>Restricción:</b> <code>NO</code> sol, <code>NO</code> piscinas.', { parse_mode: 'HTML' });
 });
 
 bot.hears('🎁 Sorteos', (ctx) => {
-    bot.telegram.sendMessage(MI_ID, `🎁 El usuario ${getUserLink(ctx)} ha entrado a SORTEOS.`, { parse_mode: 'HTML' });
+    bot.telegram.sendMessage(MI_ID, `🎁 El usuario ${getUserLink(ctx)} entró a SORTEOS.`, { parse_mode: 'HTML' });
     
-    const textoSorteo = `🏆 SORTEO ESPECIAL SPICY INK 🏆
+    const textoSorteo = 
+        `✨ <b>S O R T E O  A C T I V O</b> ✨\n━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `🏆 <b>PREMIO:</b>\n🥇 <code>TATUAJE VALORADO EN 150€</code>\n\n` +
+        `📅 <b>DURACIÓN:</b>\n<code>05 - 10 FEBRERO, 2026</code>\n\n` +
+        `🚀 <b>PARTICIPA AQUÍ:</b>\nhttps://t.me/+bAbJXSaI4rE0YzM0\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n<i>Diseño a elección libre del cliente.</i>`;
 
-¡Participa y gana una sesión totalmente gratis!
-
-🥇 PREMIO:
-Tatuaje valorado en 150€
-(Diseño a elegir libremente por el cliente)
-
-📅 FECHAS:
-Del 05 al 10 de febrero de 2026
-
-🚀 CÓMO PARTICIPAR:
-Sigue las instrucciones en nuestro canal oficial:
-
-👉 https://t.me/+bAbJXSaI4rE0YzM0
-
-¡Mucha suerte! ✨💉`;
-
-    ctx.reply(textoSorteo);
+    ctx.reply(textoSorteo, { parse_mode: 'HTML' });
 });
 
 bot.launch().then(() => console.log('🚀 Tatuador Online'));
