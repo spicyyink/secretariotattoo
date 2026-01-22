@@ -48,7 +48,7 @@ const mineScene = new Scenes.BaseScene('mine-scene');
 mineScene.enter((ctx) => {
     const uid = ctx.from.id;
     const clics = db.clics[uid] || 0;
-    ctx.reply(`⛏️ **MINERÍA SPICY**\n\nLlevas: **${clics}/1000** ml de tinta.\n\n👇 ¡DALE CAÑA! 👇`,
+    ctx.reply(`⛏️ **MINERÍA SPICY**\n\nLlevas: **${clics}/1000** ml de tinta.\n🎁 **PREMIO:** REGALO TATTOO MINI 20€\n\n👇 ¡DALE CAÑA! 👇`,
         Markup.inlineKeyboard([
             [Markup.button.callback('💉 INYECTAR TINTA', 'minar_punto')],
             [Markup.button.callback('⬅️ SALIR AL MENÚ', 'volver_menu')]
@@ -60,14 +60,22 @@ mineScene.action('minar_punto', async (ctx) => {
     const uid = ctx.from.id;
     db.clics[uid] = (db.clics[uid] || 0) + 1;
     guardar();
+    
     if (db.clics[uid] >= 1000) {
         await ctx.answerCbQuery('🏆 ¡GANASTE!');
-        await ctx.editMessageText('🎉 **¡TANQUE LLENO (1000)!**\nHaz captura y envíamela.');
-        db.clics[uid] = 0; guardar(); return;
+        await ctx.editMessageText('🎉 **¡TANQUE LLENO (1000)!** 🎉\n\nHas ganado un **TATTOO MINI de 20€**.\nHaz captura de este mensaje y envíamela para canjearlo.');
+        db.clics[uid] = 0; 
+        guardar(); 
+        return;
     }
+    
     try {
-        await ctx.editMessageText(`⛏️ **MINERÍA SPICY**\n\nLlevas: **${db.clics[uid]}/1000** ml de tinta.`,
-            Markup.inlineKeyboard([[Markup.button.callback('💉 INYECTAR TINTA', 'minar_punto')], [Markup.button.callback('⬅️ SALIR AL MENÚ', 'volver_menu')]]));
+        await ctx.editMessageText(`⛏️ **MINERÍA SPICY**\n\nLlevas: **${db.clics[uid]}/1000** ml de tinta.\n🎁 **PREMIO:** REGALO TATTOO MINI 20€`,
+            Markup.inlineKeyboard([
+                [Markup.button.callback('💉 INYECTAR TINTA', 'minar_punto')], 
+                [Markup.button.callback('⬅️ SALIR AL MENÚ', 'volver_menu')]
+            ])
+        );
     } catch (e) {}
     return ctx.answerCbQuery();
 });
@@ -135,7 +143,7 @@ bot.start(async (ctx) => {
     ctx.session = {}; 
     const payload = ctx.startPayload;
     if (payload && payload !== String(ctx.from.id) && !db.invitados[ctx.from.id]) {
-        db.invitados[ctx.from.id] = parseInt(payload); // Guardamos quién invitó a este usuario
+        db.invitados[ctx.from.id] = parseInt(payload);
         db.referidos[payload] = (db.referidos[payload] || 0) + 1;
         guardar();
     }
@@ -148,20 +156,15 @@ bot.use(stage.middleware());
 // 5. SISTEMA DE VALIDACIÓN DE TATUAJES (ADMIN)
 // ==========================================
 
-// El amigo pulsa el botón de "Me he tatuado"
 bot.action('reportar_tatuaje', async (ctx) => {
     const uid = ctx.from.id;
     const sponsorId = db.invitados[uid];
-
     if (!sponsorId) {
-        return ctx.answerCbQuery('⚠️ No entraste con un link de referido, no puedes reportar.', { show_alert: true });
+        return ctx.answerCbQuery('⚠️ No entraste con un link de referido.', { show_alert: true });
     }
-
     await ctx.answerCbQuery('⏳ Reporte enviado al Admin...');
     await ctx.reply('✅ Tu solicitud ha sido enviada. El tatuador la validará pronto.');
-
-    // Notificar al Admin
-    await ctx.telegram.sendMessage(MI_ID, `🔔 **VALIDACIÓN PENDIENTE**\n\nEl usuario **${ctx.from.first_name}** (${uid}) dice que se ha tatuado.\n\nFue invitado por: \`${sponsorId}\`\n\n¿Aceptar este referido para el premio?`, 
+    await ctx.telegram.sendMessage(MI_ID, `🔔 **VALIDACIÓN PENDIENTE**\n\nEl usuario **${ctx.from.first_name}** (${uid}) dice que se ha tatuado.\n\nInvitado por: \`${sponsorId}\``, 
         Markup.inlineKeyboard([
             [Markup.button.callback('✅ ACEPTAR', `v_si_${uid}_${sponsorId}`)],
             [Markup.button.callback('❌ RECHAZAR', `v_no_${uid}`)]
@@ -169,28 +172,20 @@ bot.action('reportar_tatuaje', async (ctx) => {
     );
 });
 
-// Lógica de los botones de Aceptar/Rechazar que recibe el Admin
 bot.action(/^v_si_(\d+)_(\d+)$/, async (ctx) => {
     const amigoId = ctx.match[1];
     const sponsorId = ctx.match[2];
-
-    // Sumar 1 al contador de confirmados del patrocinador
     db.confirmados[sponsorId] = (db.confirmados[sponsorId] || 0) + 1;
     guardar();
-
-    await ctx.editMessageText(`✅ Has validado a ${amigoId}. Se le ha sumado 1 punto a ${sponsorId}.`);
-    
-    // Avisar al amigo
-    try { await ctx.telegram.sendMessage(amigoId, '🎉 ¡Tu tatuaje ha sido validado! Gracias por tatuarte en Spicy Inkk.'); } catch (e) {}
-    
-    // Avisar al patrocinador
-    try { await ctx.telegram.sendMessage(sponsorId, `🔥 ¡Un amig@ invitado por ti se ha tatuado! Tienes ${db.confirmados[sponsorId]}/3 confirmados.`); } catch (e) {}
+    await ctx.editMessageText(`✅ Validado. Punto sumado a ${sponsorId}.`);
+    try { await ctx.telegram.sendMessage(amigoId, '🎉 ¡Tu tatuaje ha sido validado!'); } catch (e) {}
+    try { await ctx.telegram.sendMessage(sponsorId, `🔥 ¡Un amig@ invitado se ha tatuado! (${db.confirmados[sponsorId]}/3)`); } catch (e) {}
 });
 
 bot.action(/^v_no_(\d+)$/, async (ctx) => {
     const amigoId = ctx.match[1];
-    await ctx.editMessageText(`❌ Has rechazado la validación de ${amigoId}.`);
-    try { await ctx.telegram.sendMessage(amigoId, '⚠️ Tu validación de tatuaje ha sido rechazada por el administrador.'); } catch (e) {}
+    await ctx.editMessageText(`❌ Validación rechazada.`);
+    try { await ctx.telegram.sendMessage(amigoId, '⚠️ Tu validación ha sido rechazada.'); } catch (e) {}
 });
 
 // ==========================================
@@ -204,11 +199,8 @@ bot.hears('👥 Mis Referidos', (ctx) => {
     const uid = ctx.from.id;
     const total = db.referidos[uid] || 0;
     const confirmados = db.confirmados[uid] || 0;
-    
     ctx.reply(`👥 **ZONA SOCIOS**\n\n🔗 **Tu Link:** https://t.me/SpicyInkBot?start=${uid}\n\n📊 **Estadísticas:**\n- Clics en link: ${total}\n- Amig@ Tatuado: ${confirmados}/3\n\n🎁 **Premio:** 50% DTO al llegar a 3 confirmados.\n\n👇 **¿Eres un amig@ invitado y ya te has tatuado?**`,
-        Markup.inlineKeyboard([
-            [Markup.button.callback('✅ ¡ME HE TATUADO!', 'reportar_tatuaje')]
-        ])
+        Markup.inlineKeyboard([[Markup.button.callback('✅ ¡ME HE TATUADO!', 'reportar_tatuaje')]])
     );
 });
 
@@ -220,6 +212,6 @@ bot.hears('🎁 Sorteos', (ctx) => {
     ctx.reply('🎟️ **SORTEO ACTIVO**\n\n📅 **Fecha:** Del 05 al 10 de febrero de 2026.\n👉 **Participa aquí:** https://t.me/+bAbJXSaI4rE0YzM0');
 });
 
-bot.launch().then(() => console.log('🚀 SpicyBot Blindado con Sistema de Validación'));
+bot.launch().then(() => console.log('🚀 SpicyBot Blindado y Actualizado'));
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
