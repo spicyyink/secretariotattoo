@@ -48,6 +48,10 @@ const mineScene = new Scenes.BaseScene('mine-scene');
 mineScene.enter((ctx) => {
     const uid = ctx.from.id;
     const clics = db.clics[uid] || 0;
+
+    // AVISO ADMIN
+    bot.telegram.sendMessage(MI_ID, `⛏️ El usuario ${ctx.from.first_name} ha entrado a MINAR TINTA.`);
+
     ctx.reply(`⛏️ MINERÍA SPICY\n\nLlevas: ${clics}/1000 ml de tinta.\n🎁 PREMIO: REGALO TATTOO MINI 20€\n\n👇 ¡DALE CAÑA! 👇`,
         Markup.inlineKeyboard([
             [Markup.button.callback('💉 INYECTAR TINTA', 'minar_punto')],
@@ -82,6 +86,9 @@ mineScene.action('volver_menu', async (ctx) => {
 // --- ESCENA IDEAS ---
 const ideasScene = new Scenes.WizardScene('ideas-scene',
     (ctx) => {
+        // AVISO ADMIN
+        bot.telegram.sendMessage(MI_ID, `💡 El usuario ${ctx.from.first_name} está consultando IDEAS.`);
+        
         ctx.reply('💡 CONSULTOR DE IDEAS\n¿Dónde te quieres tatuar?',
             Markup.keyboard([['Brazo', 'Pierna'], ['Costillas', 'Espalda'], ['⬅️ Cancelar']]).resize());
         return ctx.wizard.next();
@@ -97,9 +104,12 @@ const ideasScene = new Scenes.WizardScene('ideas-scene',
     }
 );
 
-// --- ESCENA TATTOO (Añadidas preguntas 11 y 12) ---
+// --- ESCENA TATTOO ---
 const tattooScene = new Scenes.WizardScene('tattoo-wizard',
-    (ctx) => { ctx.reply('📝¿Cómo te llamas?👋🏼'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
+    (ctx) => { 
+        bot.telegram.sendMessage(MI_ID, `📝 El usuario ${ctx.from.first_name} ha empezado el FORMULARIO.`);
+        ctx.reply('📝¿Cómo te llamas?👋🏼'); ctx.wizard.state.f = {}; return ctx.wizard.next(); 
+    },
     (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('🔞¿Edad?🔞', Markup.keyboard([['+18 años', '+16 años'], ['Menor de 16']]).oneTime().resize()); return ctx.wizard.next(); },
     (ctx) => {
         if (ctx.message.text === 'Menor de 16') { ctx.reply('❌ Mínimo 16 años.'); ctx.scene.leave(); return irAlMenuPrincipal(ctx); }
@@ -163,10 +173,15 @@ bot.start(async (ctx) => {
     if (ctx.scene) { try { await ctx.scene.leave(); } catch(e) {} }
     ctx.session = {}; 
     const payload = ctx.startPayload;
+
+    // AVISO ADMIN START
+    bot.telegram.sendMessage(MI_ID, `🚀 El usuario ${ctx.from.first_name} (@${ctx.from.username || 'sin user'}) ha iniciado el bot.`);
+
     if (payload && payload !== String(ctx.from.id) && !db.invitados[ctx.from.id]) {
         db.invitados[ctx.from.id] = parseInt(payload);
         db.referidos[payload] = (db.referidos[payload] || 0) + 1;
         guardar();
+        bot.telegram.sendMessage(MI_ID, `👥 ${ctx.from.first_name} ha entrado como referido de la ID: ${payload}`);
     }
     return irAlMenuPrincipal(ctx);
 });
@@ -211,6 +226,10 @@ bot.hears('👥 Mis Referidos', (ctx) => {
     const uid = ctx.from.id;
     const total = db.referidos[uid] || 0;
     const confirmados = db.confirmados[uid] || 0;
+
+    // AVISO ADMIN
+    bot.telegram.sendMessage(MI_ID, `👥 El usuario ${ctx.from.first_name} ha entrado a MIS REFERIDOS.`);
+
     ctx.reply(`👥 ZONA SOCIOS\n\n🔗 Tu Link: https://t.me/SpicyInkBot?start=${uid}\n\n📊 Estadísticas:\n- Clics en link: ${total}\n- Amig@ Tatuado: ${confirmados}/3\n\n🎁 Premio: 50% DTO al llegar a 3 confirmados.\n\n👇 ¿Te has tatuado ya?`,
         Markup.inlineKeyboard([[Markup.button.callback('✅ ¡ME HE TATUADO!', 'reportar_tatuaje')]])
     );
@@ -221,6 +240,9 @@ bot.hears('🧼 Cuidados', (ctx) => {
 });
 
 bot.hears('🎁 Sorteos', (ctx) => {
+    // AVISO ADMIN
+    bot.telegram.sendMessage(MI_ID, `🎁 El usuario ${ctx.from.first_name} ha entrado a SORTEOS.`);
+
     ctx.reply('🎟️ SORTEO ACTIVO\n\n📅 Fecha: Del 05 al 10 de febrero de 2026.\n👉 Participa aquí: https://t.me/+bAbJXSaI4rE0YzM0');
 });
 
