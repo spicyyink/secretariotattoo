@@ -16,7 +16,7 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 const MI_ID = process.env.MI_ID;
 
 // ==========================================
-// 2. BASE DE DATOS (No se borra nunca)
+// 2. BASE DE DATOS LOCAL
 // ==========================================
 let db = { clics: {}, referidos: {}, confirmados: {}, invitados: {} };
 const DATA_FILE = './database.json';
@@ -30,37 +30,42 @@ function guardar() {
     fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
 }
 
-// ==========================================
-// 3. ESCENA: MINERÍA (ARREGLADA)
-// ==========================================
-const mineScene = new Scenes.WizardScene(
-    'mine-scene',
-    (ctx) => {
-        const uid = ctx.from.id;
-        const clics = db.clics[uid] || 0;
-        
-        ctx.reply(`⛏️ **MINERÍA SPICY**\n\nLlevas: **${clics}/1000** ml de tinta.\nObjetivo: Mini Tattoo Gratis.\n\n👇 ¡DALE CAÑA! 👇`,
-            Markup.inlineKeyboard([
-                [Markup.button.callback('💉 INYECTAR TINTA', 'minar_punto')], // TEXTO CAMBIADO
-                [Markup.button.callback('⬅️ SALIR AL MENÚ', 'volver_menu')]
-            ])
-        );
-        return ctx.wizard.next();
-    },
-    (ctx) => { 
-        // Si el usuario escribe texto en vez de tocar botones, le avisamos
-        // pero NO bloqueamos el bot.
-        return ctx.reply('Usa los botones para inyectar tinta o salir.'); 
-    }
-);
+// Función auxiliar para mostrar el menú principal
+function irAlMenuPrincipal(ctx) {
+    return ctx.reply('🔥 **MENÚ PRINCIPAL** 🔥\nElige una opción:',
+        Markup.keyboard([
+            ['🔥 Hablar con SpicyBot', '💉 Minar Tinta'],
+            ['💡 Consultar Ideas', '👥 Mis Referidos'],
+            ['🧼 Cuidados', '🎁 Sorteos']
+        ]).resize()
+    );
+}
 
-// LÓGICA DEL BOTÓN INYECTAR (Sin Lag)
-bot.action('minar_punto', async (ctx) => {
+// ==========================================
+// 3. ESCENA: MINERÍA (REHECHA CON BASESCENE)
+// ==========================================
+// Usamos BaseScene en vez de WizardScene para evitar bloqueos
+const mineScene = new Scenes.BaseScene('mine-scene');
+
+// AL ENTRAR EN LA MINERÍA
+mineScene.enter((ctx) => {
+    const uid = ctx.from.id;
+    const clics = db.clics[uid] || 0;
+    
+    ctx.reply(`⛏️ **MINERÍA SPICY**\n\nLlevas: **${clics}/1000** ml de tinta.\nObjetivo: Mini Tattoo Gratis.\n\n👇 ¡DALE CAÑA! 👇`,
+        Markup.inlineKeyboard([
+            [Markup.button.callback('💉 INYECTAR TINTA', 'minar_punto')],
+            [Markup.button.callback('⬅️ SALIR AL MENÚ', 'volver_menu')]
+        ])
+    );
+});
+
+// ACCIÓN: INYECTAR TINTA
+mineScene.action('minar_punto', async (ctx) => {
     const uid = ctx.from.id;
     db.clics[uid] = (db.clics[uid] || 0) + 1;
     guardar();
 
-    // Si gana
     if (db.clics[uid] >= 1000) {
         await ctx.answerCbQuery('🏆 ¡GANASTE!');
         await ctx.editMessageText('🎉 **¡TANQUE LLENO (1000)!** 🎉\n\nHas ganado un MINI TATTOO.\nHaz captura y envíamela.');
@@ -69,7 +74,6 @@ bot.action('minar_punto', async (ctx) => {
         return;
     }
 
-    // Actualizar mensaje (try/catch evita errores si pulsas muy rápido)
     try {
         await ctx.editMessageText(`⛏️ **MINERÍA SPICY**\n\nLlevas: **${db.clics[uid]}/1000** ml de tinta.\nObjetivo: Mini Tattoo Gratis.\n\n👇 ¡DALE CAÑA! 👇`,
             Markup.inlineKeyboard([
@@ -77,26 +81,24 @@ bot.action('minar_punto', async (ctx) => {
                 [Markup.button.callback('⬅️ SALIR AL MENÚ', 'volver_menu')]
             ])
         );
-    } catch (e) {
-        // Ignoramos el error "message is not modified" típico de hacer click muy rápido
+    } catch (e) { 
+        // Ignoramos error si pulsa muy rápido (Telegram no deja editar el mismo mensaje 2 veces seguidas idénticas)
     }
-    
-    return ctx.answerCbQuery(); // Quita el reloj de arena
+    return ctx.answerCbQuery();
 });
 
-// LÓGICA DEL BOTÓN SALIR (SOLUCIÓN AL BLOQUEO)
-bot.action('volver_menu', async (ctx) => {
-    await ctx.answerCbQuery(); // 1. Quitar reloj de arena
-    
-    // 2. Intentar borrar el mensaje de minería para limpiar chat
-    try { await ctx.deleteMessage(); } catch (e) {} 
-    
-    // 3. OBLIGATORIO: Matar la escena para desbloquear el menú principal
-    if (ctx.scene) { await ctx.scene.leave(); }
-    
-    // 4. Enviar menú principal
-    return irAlMenuPrincipal(ctx);
+// ACCIÓN: VOLVER AL MENÚ (AQUÍ ESTABA EL FALLO, AHORA CORREGIDO)
+mineScene.action('volver_menu', async (ctx) => {
+    await ctx.answerCbQuery(); // Quita el reloj de arena
+    try { await ctx.deleteMessage(); } catch (e) {} // Borra el juego
+    await ctx.scene.leave(); // SALIDA EXPLÍCITA DE LA ESCENA
+    return irAlMenuPrincipal(ctx); // Muestra el menú
 });
+
+// Si el usuario escribe texto dentro del juego, lo ignoramos o le avisamos, 
+// PERO NO DEJAMOS QUE INTERFIERA CON EL MENÚ PRINCIPAL PORQUE "volver_menu" YA NOS HABRÁ SACADO.
+mineScene.on('message', (ctx) => ctx.reply('⚠️ Pulsa "⬅️ SALIR AL MENÚ" para usar otras opciones.'));
+
 
 // ==========================================
 // 4. OTRAS ESCENAS (Ideas y Tattoo)
@@ -112,15 +114,22 @@ const ideasScene = new Scenes.WizardScene(
     },
     (ctx) => {
         const msg = ctx.message.text;
-        if (msg.includes('Cancelar')) return irAlMenuPrincipal(ctx);
+        if (msg && msg.includes('Cancelar')) {
+             ctx.scene.leave();
+             return irAlMenuPrincipal(ctx);
+        }
         
         let consejo = "✨ Para esa zona recomiendo diseños fluidos.";
         if (msg === 'Costillas') consejo = "🔥 Zona dolorosa pero sexy. Mejor algo vertical y fino.";
         if (msg === 'Espalda') consejo = "🖼️ El mejor lienzo. Ideal para piezas grandes o realismo.";
         
         ctx.reply(consejo);
-        setTimeout(() => irAlMenuPrincipal(ctx), 1500);
-        return ctx.scene.leave();
+        // Pequeño timeout para que de tiempo a leer antes de volver al menú
+        setTimeout(() => {
+            // Solo intentamos volver si el usuario sigue ahí (precaución básica)
+        }, 1500);
+        ctx.scene.leave();
+        return irAlMenuPrincipal(ctx);
     }
 );
 
@@ -130,7 +139,7 @@ const tattooScene = new Scenes.WizardScene(
     (ctx) => { ctx.reply('📝 **FICHA DE TATTOO**\n\n1️⃣ ¿Cómo te llamas?'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('2️⃣ ¿Qué edad tienes?', Markup.keyboard([['+18 años', '+16 años'], ['Menor de 16']]).oneTime().resize()); return ctx.wizard.next(); },
     (ctx) => {
-        if (ctx.message.text === 'Menor de 16') { ctx.reply('❌ Lo siento, no tatúo a menores de 16.'); return ctx.scene.leave(); }
+        if (ctx.message.text === 'Menor de 16') { ctx.reply('❌ Lo siento, no tatúo a menores de 16.'); ctx.scene.leave(); return irAlMenuPrincipal(ctx); }
         ctx.wizard.state.f.edad = ctx.message.text;
         ctx.reply('3️⃣ ¿Zona del cuerpo?', Markup.removeKeyboard()); return ctx.wizard.next();
     },
@@ -148,6 +157,8 @@ const tattooScene = new Scenes.WizardScene(
         const ficha = `🖋️ **NUEVA SOLICITUD**\n\n👤 ${d.nombre} (${d.edad})\n📍 Zona: ${d.zona}\n💡 Idea: ${d.idea}\n🎨 Estilo: ${d.estilo}\n📏 Tam: ${d.tamano}\n🏥 Salud: ${d.salud}\n🕒 Horario: ${d.horario}`;
         await ctx.telegram.sendMessage(MI_ID, ficha);
         if (photo) await ctx.telegram.sendPhoto(MI_ID, photo);
+        
+        ctx.scene.leave();
         return irAlMenuPrincipal(ctx);
     }
 );
@@ -159,22 +170,13 @@ const stage = new Scenes.Stage([tattooScene, mineScene, ideasScene]);
 bot.use(session());
 bot.use(stage.middleware());
 
-// MENÚ PRINCIPAL
-function irAlMenuPrincipal(ctx) {
-    if (ctx.scene) ctx.scene.leave(); 
-    return ctx.reply('🔥 **MENÚ PRINCIPAL** 🔥\nElige una opción:',
-        Markup.keyboard([
-            ['🔥 Hablar con SpicyBot', '⛏️ Minar Tinta'],
-            ['💡 Consultar Ideas', '👥 Mis Referidos'],
-            ['🧼 Cuidados', '🎁 Sorteos']
-        ]).resize()
-    );
-}
-
 // START (RESET TOTAL)
 bot.start(async (ctx) => {
-    if (ctx.scene) await ctx.scene.leave();
-    ctx.session = {}; // Limpieza
+    // Forzamos salida de cualquier escena anterior para evitar bugs
+    if (ctx.scene) {
+        try { await ctx.scene.leave(); } catch(e) {}
+    }
+    ctx.session = {}; // Limpieza de sesión
     
     // Referidos
     const payload = ctx.startPayload;
@@ -186,9 +188,9 @@ bot.start(async (ctx) => {
     return irAlMenuPrincipal(ctx);
 });
 
-// LISTENERS DEL MENÚ
+// LISTENERS DEL MENÚ PRINCIPAL
 bot.hears('🔥 Hablar con SpicyBot', (ctx) => ctx.scene.enter('tattoo-wizard'));
-bot.hears('⛏️ Minar Tinta', (ctx) => ctx.scene.enter('mine-scene'));
+bot.hears('💉 Minar Tinta', (ctx) => ctx.scene.enter('mine-scene'));
 bot.hears('💡 Consultar Ideas', (ctx) => ctx.scene.enter('ideas-scene'));
 
 bot.hears('👥 Mis Referidos', (ctx) => {
