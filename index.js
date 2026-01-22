@@ -8,7 +8,7 @@ const fs = require('fs');
 // ==========================================
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('SpicyBot Online ✅');
+    res.end('Tatuador Online ✅');
 });
 server.listen(process.env.PORT || 3000);
 
@@ -32,7 +32,7 @@ function guardar() {
 function irAlMenuPrincipal(ctx) {
     return ctx.reply('🔥 MENÚ PRINCIPAL 🔥\nElige una opción:',
         Markup.keyboard([
-            ['🔥 Hablar con SpicyBot', '💉 Minar Tinta'],
+            ['🔥 Hablar con el Tatuador', '💉 Minar Tinta'],
             ['💡 Consultar Ideas', '👥 Mis Referidos'],
             ['🧼 Cuidados', '🎁 Sorteos']
         ]).resize()
@@ -97,30 +97,30 @@ const ideasScene = new Scenes.WizardScene('ideas-scene',
     }
 );
 
-// --- ESCENA TATTOO (FORMULARIO LIMPIO CON IG OPCIONAL) ---
+// --- ESCENA TATTOO (Añadidas preguntas 11 y 12) ---
 const tattooScene = new Scenes.WizardScene('tattoo-wizard',
-    (ctx) => { ctx.reply('📝 1️⃣ ¿Cómo te llamas?'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('2️⃣ ¿Edad?', Markup.keyboard([['+18 años', '+16 años'], ['Menor de 16']]).oneTime().resize()); return ctx.wizard.next(); },
+    (ctx) => { ctx.reply('📝¿Cómo te llamas?👋🏼'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('🔞¿Edad?🔞', Markup.keyboard([['+18 años', '+16 años'], ['Menor de 16']]).oneTime().resize()); return ctx.wizard.next(); },
     (ctx) => {
         if (ctx.message.text === 'Menor de 16') { ctx.reply('❌ Mínimo 16 años.'); ctx.scene.leave(); return irAlMenuPrincipal(ctx); }
         ctx.wizard.state.f.edad = ctx.message.text;
-        ctx.reply('3️⃣ ¿Zona del cuerpo?', Markup.removeKeyboard()); return ctx.wizard.next();
+        ctx.reply('👤¿Zona del cuerpo?🦾', Markup.removeKeyboard()); return ctx.wizard.next();
     },
-    (ctx) => { ctx.wizard.state.f.zona = ctx.message.text; ctx.reply('4️⃣ Describe tu idea:'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.idea = ctx.message.text; ctx.reply('5️⃣ ¿Estilo?'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.estilo = ctx.message.text; ctx.reply('6️⃣ Tamaño cm:'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.tamano = ctx.message.text; ctx.reply('7️⃣ ¿Salud/Alergias?'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.salud = ctx.message.text; ctx.reply('8️⃣ ¿Piel (Cicatrices/Lunares)?'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.piel = ctx.message.text; ctx.reply('9️⃣ ¿Horario?'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.horario = ctx.message.text; ctx.reply('🔟 Envía FOTO o escribe "No tengo":'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.zona = ctx.message.text; ctx.reply('💡Describe tu idea💡:'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.idea = ctx.message.text; ctx.reply('🖼️¿Estilo?🫟'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.estilo = ctx.message.text; ctx.reply('📏Tamaño cm:📐'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.tamano = ctx.message.text; ctx.reply('🫀¿Salud/Alergias?🫀💊'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.salud = ctx.message.text; ctx.reply('💉¿Piel (Cicatrices/Lunares)💉?'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.piel = ctx.message.text; ctx.reply('🌍¿Horario?📘'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.horario = ctx.message.text; ctx.reply('🎆Envía FOTO o escribe🎆•⚠️"No tengo"⚠️'); return ctx.wizard.next(); },
     (ctx) => {
         ctx.wizard.state.f.foto = ctx.message.photo ? ctx.message.photo[ctx.message.photo.length - 1].file_id : null;
-        ctx.reply('1️⃣1️⃣ ¿Tu número de WhatsApp? (Ej: 34600000000)');
+        ctx.reply('📲¿Tu número de WhatsApp?📲 (Ej: 34600000000)');
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.f.telefono = ctx.message.text.replace(/\s+/g, '');
-        ctx.reply('1️⃣2️⃣ Nombre de Instagram (Opcional, escribe "No" para saltar):');
+        ctx.reply('🛜Nombre de Instagram🛜 (Opcional, escribe "No" para saltar):');
         return ctx.wizard.next();
     },
     async (ctx) => {
@@ -140,7 +140,7 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
             `📞 WhatsApp: ${d.telefono}\n` +
             `📸 Instagram: ${d.ig}`;
 
-        await ctx.reply('✅ Recibido. Revisaremos tu solicitud pronto.');
+        await ctx.reply('✅ Recibido. El Tatuador revisará tu solicitud pronto.');
         
         const keyboard = Markup.inlineKeyboard([
             [Markup.button.url('📲 ABRIR WHATSAPP', `https://wa.me/${d.telefono}`)]
@@ -181,7 +181,7 @@ bot.action('reportar_tatuaje', async (ctx) => {
     const sponsorId = db.invitados[uid];
     if (!sponsorId) return ctx.answerCbQuery('⚠️ No entraste con link de referido.', { show_alert: true });
     
-    await ctx.reply('✅ Reporte enviado. El tatuador lo validará pronto.');
+    await ctx.reply('✅ Reporte enviado. El Tatuador lo validará pronto.');
     await ctx.telegram.sendMessage(MI_ID, `🔔 VALIDACIÓN PENDIENTE\n\nEl usuario ${ctx.from.first_name} (${uid}) se ha tatuado.\n\nInvitado por: ${sponsorId}`, 
         Markup.inlineKeyboard([
             [Markup.button.callback('✅ ACEPTAR', `v_si_${uid}_${sponsorId}`)],
@@ -203,7 +203,7 @@ bot.action(/^v_si_(\d+)_(\d+)$/, async (ctx) => {
 // ==========================================
 // 6. LISTENERS GLOBALES
 // ==========================================
-bot.hears('🔥 Hablar con SpicyBot', (ctx) => ctx.scene.enter('tattoo-wizard'));
+bot.hears('🔥 Hablar con el Tatuador', (ctx) => ctx.scene.enter('tattoo-wizard'));
 bot.hears('💉 Minar Tinta', (ctx) => ctx.scene.enter('mine-scene'));
 bot.hears('💡 Consultar Ideas', (ctx) => ctx.scene.enter('ideas-scene'));
 
@@ -224,4 +224,4 @@ bot.hears('🎁 Sorteos', (ctx) => {
     ctx.reply('🎟️ SORTEO ACTIVO\n\n📅 Fecha: Del 05 al 10 de febrero de 2026.\n👉 Participa aquí: https://t.me/+bAbJXSaI4rE0YzM0');
 });
 
-bot.launch().then(() => console.log('🚀 SpicyBot Online'));
+bot.launch().then(() => console.log('🚀 Tatuador Online'));
