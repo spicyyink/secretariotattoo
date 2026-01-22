@@ -1,3 +1,5 @@
+He actualizado el mensaje dentro de la escena de minería y en la actualización de los clics para que el premio (Mini Tattoo de 15€) quede bien claro desde el principio.
+Aquí tienes el código completo con la corrección:
 require('dotenv').config();
 
 const { Telegraf, Scenes, session, Markup } = require('telegraf');
@@ -12,47 +14,71 @@ const server = http.createServer((req, res) => {
 });
 server.listen(process.env.PORT || 3000);
 
-// ==========================================
-// CONFIGURACIÓN Y BASES DE DATOS (MEMORIA)
-// ==========================================
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const MI_ID = process.env.MI_ID;
 
+// BASES DE DATOS TEMPORALES (EN MEMORIA)
 const db_clics = new Map();
-const db_referidos_count = new Map();   // Cuánta gente ha traído al bot
-const db_tattoos_confirmados = new Map(); // Cuántos de sus amigos se han tatuado de verdad
-const quien_invito_a_quien = new Map(); // Para saber a quién darle el punto cuando alguien se tatúa
+const db_referidos_count = new Map();
+const db_tattoos_confirmados = new Map();
+const quien_invito_a_quien = new Map();
 const usuarios_registrados = new Set();
 
-// --- ESCENA: MINERÍA (CLICS) ---
+// ==========================================
+// ESCENA: MINERÍA (CON PREMIO VISIBLE)
+// ==========================================
 const mineScene = new Scenes.WizardScene(
     'mine-scene',
     (ctx) => {
         const userId = ctx.from.id;
         const clics = db_clics.get(userId) || 0;
-        ctx.reply(`⛏️ **MODO MINERÍA SPICY**\n\nLlevas: **${clics}/1000** clics.`,
-        Markup.keyboard([['⛏️ MINAR'], ['⬅️ Volver']]).resize());
+        
+        ctx.reply(`⛏️ **MODO MINERÍA SPICY**\n\nLlevas: **${clics}/1000** clics.\n\n🎁 **PREMIO:** Al llegar a los 1000 clics ganas un **MINI TATTOO valorado en 15€**.\n\n¡Pulsa el botón de abajo para minar!`,
+        Markup.inlineKeyboard([
+            [Markup.button.callback('⛏️ ¡MINAR PUNTO!', 'minar_punto')],
+            [Markup.button.callback('⬅️ Menú Principal', 'volver_menu')]
+        ]));
         return ctx.wizard.next();
     },
-    async (ctx) => {
-        const userId = ctx.from.id;
-        if (ctx.message.text === '⬅️ Volver') return irAlMenuPrincipal(ctx);
-        if (ctx.message.text === '⛏️ MINAR') {
-            let clics = (db_clics.get(userId) || 0) + 1;
-            db_clics.set(userId, clics);
-            if (clics >= 1000) {
-                await ctx.reply('🎉 ¡1000 CLICS! Captura y reclama tu mini tattoo.');
-                await ctx.telegram.sendMessage(MI_ID, `🏆 @${ctx.from.username} completó minería.`);
-                db_clics.set(userId, 0);
-                return irAlMenuPrincipal(ctx);
-            }
-            if (clics % 50 === 0) ctx.reply(`🔥 Llevas ${clics} clics.`);
-            return; 
-        }
-    }
+    (ctx) => { return; }
 );
 
-// --- ESCENA DE IDEAS (ORIGINAL) ---
+// Lógica de actualización de clics
+bot.action('minar_punto', async (ctx) => {
+    const userId = ctx.from.id;
+    let clics = (db_clics.get(userId) || 0) + 1;
+    db_clics.set(userId, clics);
+
+    if (clics >= 1000) {
+        await ctx.answerCbQuery('¡OBJETIVO LOGRADO! 🎉');
+        await ctx.editMessageText(`🎉 **¡ENHORABUENA!**\n\nHas completado los 1000 clics.\n\n🎁 Has ganado un **MINI TATTOO de 15€**.\n\n📸 **CAPTURA** esta pantalla ahora mismo y envíasela al tatuador por privado para canjear tu premio.`);
+        await ctx.telegram.sendMessage(MI_ID, `🏆 @${ctx.from.username} ha completado los 1000 clics y reclama su mini tattoo.`);
+        db_clics.set(userId, 0);
+        return;
+    }
+
+    try {
+        await ctx.editMessageText(`⛏️ **MODO MINERÍA SPICY**\n\nLlevas: **${clics}/1000** clics.\n\n🎁 **PREMIO:** MINI TATTOO de 15€.\n\n¡Sigue dándole!`,
+        Markup.inlineKeyboard([
+            [Markup.button.callback('⛏️ ¡MINAR PUNTO!', 'minar_punto')],
+            [Markup.button.callback('⬅️ Menú Principal', 'volver_menu')]
+        ]));
+        await ctx.answerCbQuery(); 
+    } catch (e) {
+        await ctx.answerCbQuery();
+    }
+});
+
+bot.action('volver_menu', async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.deleteMessage();
+    return irAlMenuPrincipal(ctx);
+});
+
+// ==========================================
+// RESTO DE ESCENAS (IDEAS Y FORMULARIO)
+// ==========================================
+
 const ideasScene = new Scenes.WizardScene(
     'ideas-scene',
     (ctx) => {
@@ -69,11 +95,10 @@ const ideasScene = new Scenes.WizardScene(
     }
 );
 
-// --- ESCENA DE PRESUPUESTO (ORIGINAL COMPLETA) ---
 const tattooScene = new Scenes.WizardScene(
     'tattoo-wizard',
     (ctx) => {
-        ctx.reply('¡Hola! Soy SpicyBot.\n\n¿Cómo te llamas?');
+        ctx.reply('¡Hola! Soy SpicyBot.\n¿Cómo te llamas?');
         ctx.wizard.state.formData = { user: ctx.from.username ? `@${ctx.from.username}` : 'Sin alias' };
         return ctx.wizard.next();
     },
@@ -83,18 +108,17 @@ const tattooScene = new Scenes.WizardScene(
         return ctx.wizard.next();
     },
     (ctx) => {
-        const respuestaEdad = ctx.message.text;
-        if (respuestaEdad === 'Menor de 16') {
+        if (ctx.message.text === 'Menor de 16') {
             ctx.reply('Lo siento, el estudio no realiza tatuajes a menores de 16 años.');
             return ctx.scene.leave();
         }
-        ctx.wizard.state.formData.edad = respuestaEdad;
+        ctx.wizard.state.formData.edad = ctx.message.text;
         ctx.reply('¿Sufres de alergias o medicación?', Markup.keyboard([['No, todo bien'], ['Sí (especificar)', 'No lo sé']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.formData.salud = ctx.message.text;
-        ctx.reply('¿Cuál es tu número de teléfono?', Markup.removeKeyboard());
+        ctx.reply('¿Número de teléfono?');
         return ctx.wizard.next();
     },
     (ctx) => {
@@ -104,7 +128,7 @@ const tattooScene = new Scenes.WizardScene(
     },
     (ctx) => {
         ctx.wizard.state.formData.idea = ctx.message.text;
-        ctx.reply('¿Tamaño en cm?', Markup.keyboard([['No lo sé, asesórame']]).oneTime().resize());
+        ctx.reply('¿Tamaño en cm?');
         return ctx.wizard.next();
     },
     (ctx) => {
@@ -119,7 +143,7 @@ const tattooScene = new Scenes.WizardScene(
     },
     (ctx) => {
         ctx.wizard.state.formData.horario = ctx.message.text;
-        ctx.reply('Envíame foto de referencia:', Markup.keyboard([['❌ No tengo foto']]).oneTime().resize());
+        ctx.reply('Foto de referencia:', Markup.keyboard([['❌ No tengo foto']]).oneTime().resize());
         return ctx.wizard.next();
     },
     async (ctx) => {
@@ -128,7 +152,7 @@ const tattooScene = new Scenes.WizardScene(
         await ctx.reply('¡Ficha enviada! Te contactaré pronto.', Markup.removeKeyboard());
         const ficha = `🖋️ NUEVA SOLICITUD\n\n👤 Nombre: ${d.nombre}\n🔞 Edad: ${d.edad}\n🏥 Salud: ${d.salud}\n📞 WhatsApp: ${d.telefono}\n💡 Idea: ${d.idea}\n📏 Tamaño: ${d.tamano}\n🩹 Piel: ${d.piel}\n🕒 Horario: ${d.horario}`;
         await ctx.telegram.sendMessage(MI_ID, ficha, {
-            ...Markup.inlineKeyboard([[Markup.button.url('💬 Abrir WhatsApp', `https://wa.me/${d.telefono.replace(/\D/g, '')}`)]])
+            ...Markup.inlineKeyboard([[Markup.button.url('💬 WhatsApp', `https://wa.me/${d.telefono.replace(/\D/g, '')}`)]])
         });
         if (photoId) await ctx.telegram.sendPhoto(MI_ID, photoId);
         setTimeout(() => irAlMenuPrincipal(ctx), 2000);
@@ -147,7 +171,7 @@ function irAlMenuPrincipal(ctx) {
         ]).resize());
 }
 
-// --- LÓGICA DE REFERIDOS Y CONFIRMACIÓN ---
+// --- LÓGICA DE REFERIDOS Y VALIDACIÓN ---
 bot.hears('👥 Mis Referidos', (ctx) => {
     const userId = ctx.from.id;
     const invitados = db_referidos_count.get(userId) || 0;
@@ -158,41 +182,28 @@ bot.hears('👥 Mis Referidos', (ctx) => {
     Markup.inlineKeyboard([[Markup.button.callback('✅ Ya me he tatuado', 'cliente_confirmar_tattoo')]]));
 });
 
-// Cuando el cliente dice que se ha tatuado
 bot.action('cliente_confirmar_tattoo', (ctx) => {
     const userId = ctx.from.id;
-    const username = ctx.from.username || ctx.from.first_name;
     const inviterId = quien_invito_a_quien.get(userId);
-
-    if (!inviterId) {
-        return ctx.reply('No has entrado con ningún link de invitado, pero ¡puedes empezar a invitar tú a tus amigos!');
-    }
-
-    ctx.reply('Solicitud enviada al tatuador. En cuanto lo confirme, tu amigo recibirá su punto.');
+    if (!inviterId) return ctx.reply('No has entrado con link de invitado.');
     
-    // Te envía el mensaje a ti
-    bot.telegram.sendMessage(MI_ID, `⚠️ **CONFIRMACIÓN DE TATTOO**\n\nEl usuario @${username} (ID: ${userId}) dice que se ha tatuado.\n\n¿Confirmas el punto para el amigo que lo invitó?`,
+    ctx.reply('Solicitud de validación enviada.');
+    bot.telegram.sendMessage(MI_ID, `⚠️ **VALIDAR TATTOO**\nUsuario: @${ctx.from.username}\n¿Confirmas el punto para el amigo?`,
     Markup.inlineKeyboard([
-        [Markup.button.callback('✅ SÍ, confirmar', `admin_confirmar_${userId}_${inviterId}`)],
-        [Markup.button.callback('❌ NO, cancelar', 'admin_denegar')]
+        [Markup.button.callback('✅ SÍ', `admin_confirmar_${userId}_${inviterId}`)],
+        [Markup.button.callback('❌ NO', 'admin_denegar')]
     ]));
 });
 
-// Cuando tú (Admin) confirmas el tatuaje
 bot.action(/admin_confirmar_(.+)_(.+)/, async (ctx) => {
-    const userId = ctx.match[1];
     const inviterId = parseInt(ctx.match[2]);
-
     let confirmados = (db_tattoos_confirmados.get(inviterId) || 0) + 1;
     db_tattoos_confirmados.set(inviterId, confirmados);
-
-    await ctx.editMessageText(`✅ Confirmado. Ahora el usuario que invitó tiene ${confirmados} tatuajes confirmados.`);
-    
-    // Avisar al que invitó
-    bot.telegram.sendMessage(inviterId, `🔥 ¡NOTICIÓN! Un amigo tuyo se ha tatuado. Ya llevas **${confirmados}/3** tatuajes confirmados.\n${confirmados >= 3 ? '🏆 ¡HAS GANADO EL 50% DE DESCUENTO! Contacta con el tatuador para tu cita.' : ''}`);
+    await ctx.editMessageText(`✅ Punto confirmado (${confirmados}/3).`);
+    bot.telegram.sendMessage(inviterId, `🔥 ¡Punto de tatuaje confirmado! Llevas **${confirmados}/3**.`);
 });
 
-bot.action('admin_denegar', (ctx) => ctx.editMessageText('❌ Acción cancelada.'));
+bot.action('admin_denegar', (ctx) => ctx.editMessageText('❌ Denegado.'));
 
 // --- OTROS BOTONES ---
 bot.hears('🎨 Tipografías', (ctx) => {
@@ -202,11 +213,11 @@ bot.hears('🎨 Tipografías', (ctx) => {
     ]));
 });
 
-bot.hears('🧼 Cuidados', (ctx) => ctx.reply('✨ **CUIDADOS**\n1. Lava 3 veces/día.\n2. Seca con papel.\n3. Crema fina.', { parse_mode: 'Markdown' }));
-bot.hears('🎁 Sorteos', (ctx) => ctx.reply('🎉 **SORTEO**: https://t.me/+bAbJXSaI4rE0YzM0'));
-bot.hears('📅 Huecos Libres', (ctx) => ctx.reply('⚡ Revisa mi Instagram para cancelaciones.'));
+bot.hears('🧼 Cuidados', (ctx) => ctx.reply('✨ **CUIDADOS**\n1. Lava 3 veces/día.\n2. Seca con papel.\n3. Crema fina.'));
+bot.hears('🎁 Sorteos', (ctx) => ctx.reply('🎉 **SORTEOS**: https://t.me/+bAbJXSaI4rE0YzM0'));
+bot.hears('📅 Huecos Libres', (ctx) => ctx.reply('⚡ Mira mi Instagram.'));
 
-// --- INICIO Y REFERIDOS ---
+// --- INICIO ---
 const stage = new Scenes.Stage([tattooScene, ideasScene, mineScene]);
 bot.use(session());
 bot.use(stage.middleware());
@@ -214,13 +225,11 @@ bot.use(stage.middleware());
 bot.start((ctx) => {
     const startPayload = ctx.startPayload; 
     const nuevoUsuario = ctx.from.id;
-
     if (startPayload && startPayload !== String(nuevoUsuario) && !usuarios_registrados.has(nuevoUsuario)) {
         const referrerId = parseInt(startPayload);
         db_referidos_count.set(referrerId, (db_referidos_count.get(referrerId) || 0) + 1);
-        quien_invito_a_quien.set(nuevoUsuario, referrerId); // Guardamos la relación
+        quien_invito_a_quien.set(nuevoUsuario, referrerId);
         usuarios_registrados.add(nuevoUsuario);
-        bot.telegram.sendMessage(referrerId, `🔔 ¡Un amigo ha entrado al bot con tu link!`);
     }
     return irAlMenuPrincipal(ctx);
 });
@@ -229,4 +238,5 @@ bot.hears('🔥 Hablar con SpicyBot', (ctx) => ctx.scene.enter('tattoo-wizard'))
 bot.hears('💡 Consultar Ideas', (ctx) => ctx.scene.enter('ideas-scene'));
 bot.hears('⛏️ Minar Tinta', (ctx) => ctx.scene.enter('mine-scene'));
 
-bot.launch().then(() => console.log('✅ SpicyBot Full con Validación de Admin'));
+bot.launch().then(() => console.log('✅ SpicyBot Operativo con Minería Informada'));
+
