@@ -36,7 +36,7 @@ function guardar() {
 }
 
 // ==========================================
-// 3. LÓGICA DE PRESUPUESTO ACTUALIZADA (CON PLUSES)
+// 3. LÓGICA DE PRESUPUESTO DINÁMICA
 // ==========================================
 function calcularPresupuesto(tamanoStr, zona, estilo) {
     const cms = parseInt(tamanoStr.replace(/\D/g, '')) || 0;
@@ -44,7 +44,7 @@ function calcularPresupuesto(tamanoStr, zona, estilo) {
     const estiloLow = (estilo || "").toLowerCase();
     let estimado = "";
 
-    // Escala Base (Ajustada: 13cm = ~90€)
+    // Escala base (13cm = ~90€)
     if (cms <= 5) {
         estimado = "30€ (Tarifa Mini)";
     } else if (cms <= 10) {
@@ -58,12 +58,15 @@ function calcularPresupuesto(tamanoStr, zona, estilo) {
     }
 
     let pluses = [];
-    // Plus por Estilo
-    if (estiloLow.includes("realismo") || estiloLow.includes("realista") || estiloLow.includes("realistic")) {
+    // Plus por Estilo (Realismo y Lettering complejo)
+    if (estiloLow.includes("realismo")) {
         pluses.push("Complejidad de Estilo (Realismo)");
+    } else if (estiloLow.includes("lettering")) {
+        pluses.push("Detalle de Caligrafía (Lettering)");
     }
-    // Plus por Zona
-    const zonasCriticas = ['costillas', 'cuello', 'mano', 'rodilla', 'esternon', 'cara', 'pies', 'columna', 'codo', 'tobillo'];
+
+    // Plus por Zonas Técnicas
+    const zonasCriticas = ['costillas', 'cuello', 'mano', 'rodilla', 'esternon', 'cara', 'pies', 'columna', 'codo', 'tobillo', 'axila'];
     if (zonasCriticas.some(z => zonaLow.includes(z))) {
         pluses.push("Dificultad de Zona Anatómica");
     }
@@ -71,7 +74,6 @@ function calcularPresupuesto(tamanoStr, zona, estilo) {
     if (pluses.length > 0) {
         return `Estimado base: ${estimado}\n⚠️ INCREMENTO POR:\n└ ${pluses.join("\n└ ")}`;
     }
-
     return `Estimado: ${estimado}`;
 }
 
@@ -89,87 +91,114 @@ function irAlMenuPrincipal(ctx) {
 }
 
 // ==========================================
-// 5. DEFINICIÓN DE ESCENAS (SCENES)
+// 5. ESCENAS
 // ==========================================
 
+// --- ESCENA MINERÍA ---
 const mineScene = new Scenes.BaseScene('mine-scene');
 mineScene.enter((ctx) => {
     const uid = ctx.from.id;
-    const clics = db.clics[uid] || 0;
-    ctx.reply(`💉 M I N E R Í A  D E  T I N T A\n━━━━━━━━━━━━━━━━━━━━\n\nEstado: ${clics} / 1000 ml\n\nPulsa para recolectar:`,
-        Markup.inlineKeyboard([
-            [Markup.button.callback('💉 INYECTAR TINTA', 'minar_punto')],
-            [Markup.button.callback('⬅️ SALIR', 'volver_menu')]
-        ])
-    );
+    ctx.reply(`💉 M I N E R Í A  D E  T I N T A\n━━━━━━━━━━━━━━━━━━━━\nEstado: ${db.clics[uid] || 0} / 1000 ml`,
+        Markup.inlineKeyboard([[Markup.button.callback('💉 INYECTAR TINTA', 'minar_punto')], [Markup.button.callback('⬅️ SALIR', 'volver_menu')]]));
 });
-
 mineScene.action('minar_punto', async (ctx) => {
     const uid = ctx.from.id;
     db.clics[uid] = (db.clics[uid] || 0) + 1;
     guardar();
     if (db.clics[uid] >= 1000) {
-        await ctx.editMessageText('🎉 TANQUE COMPLETADO 🎉\nHaz captura y envíala al tatuador.');
+        await ctx.editMessageText('🎉 TANQUE COMPLETADO 🎉\nHaz captura para canjear.');
         db.clics[uid] = 0; guardar(); return;
     }
-    try {
-        await ctx.editMessageText(`💉 M I N E R Í A  D E  T I N T A\n━━━━━━━━━━━━━━━━━━━━\n\nEstado: ${db.clics[uid]} / 1000 ml`,
-            Markup.inlineKeyboard([[Markup.button.callback('💉 INYECTAR TINTA', 'minar_punto')], [Markup.button.callback('⬅️ SALIR', 'volver_menu')]]));
-    } catch (e) {}
+    try { await ctx.editMessageText(`💉 M I N E R Í A  D E  T I N T A\n━━━━━━━━━━━━━━━━━━━━\nEstado: ${db.clics[uid]} / 1000 ml`,
+        Markup.inlineKeyboard([[Markup.button.callback('💉 INYECTAR TINTA', 'minar_punto')], [Markup.button.callback('⬅️ SALIR', 'volver_menu')]])); } catch (e) {}
     return ctx.answerCbQuery();
 });
+mineScene.action('volver_menu', async (ctx) => { await ctx.scene.leave(); return irAlMenuPrincipal(ctx); });
 
-mineScene.action('volver_menu', async (ctx) => {
-    await ctx.scene.leave();
-    return irAlMenuPrincipal(ctx);
-});
-
-// --- FORMULARIO CON LÓGICA DE PLUSE ---
+// --- ESCENA FORMULARIO (ACTUALIZADA CON LETTERING) ---
 const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     (ctx) => { 
-        ctx.reply('⚠️ A V I S O  I M P O R T A N T E\n━━━━━━━━━━━━━━━━━━━━\nDebes proporcionar DATOS REALES. Cualquier error puede invalidar el presupuesto.\n\nEscribe tu Nombre Completo:'); 
+        ctx.reply('⚠️ A V I S O  I M P O R T A N T E\n━━━━━━━━━━━━━━━━━━━━\nDebes proporcionar DATOS REALES.\n\nEscribe tu Nombre Completo:'); 
         ctx.wizard.state.f = {}; return ctx.wizard.next(); 
     },
     (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('🔞 ¿Edad?', Markup.keyboard([['+18 años', '+16 años'], ['Menor de 16']]).oneTime().resize()); return ctx.wizard.next(); },
     (ctx) => {
         if (ctx.message.text === 'Menor de 16') { ctx.reply('❌ Mínimo 16 años.'); return ctx.scene.leave(); }
         ctx.wizard.state.f.edad = ctx.message.text;
-        ctx.reply('📍 ¿Zona del cuerpo? (Sé específico):', Markup.removeKeyboard()); return ctx.wizard.next();
+        ctx.reply('📍 ¿Zona del cuerpo? (Ej: Antebrazo, Cuello...):', Markup.removeKeyboard()); return ctx.wizard.next();
     },
     (ctx) => { ctx.wizard.state.f.zona = ctx.message.text; ctx.reply('📏 Tamaño exacto en cm:'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.tamano = ctx.message.text; ctx.reply('🎨 Estilo (Fine Line, Realismo, Blackwork...):'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.estilo = ctx.message.text; ctx.reply('🏥 Alergias o medicación:'); return ctx.wizard.next(); },
+    (ctx) => { 
+        ctx.wizard.state.f.tamano = ctx.message.text; 
+        ctx.reply('🎨 Selecciona el Estilo del tatuaje:', 
+            Markup.inlineKeyboard([
+                [Markup.button.callback('Fine Line', 'estilo_Fine Line'), Markup.button.callback('Realismo', 'estilo_Realismo')],
+                [Markup.button.callback('Lettering', 'estilo_Lettering'), Markup.button.callback('Blackwork', 'estilo_Blackwork')],
+                [Markup.button.callback('Tradicional', 'estilo_Tradicional'), Markup.button.callback('Minimalista', 'estilo_Minimalista')],
+                [Markup.button.callback('Full Color', 'estilo_Full Color'), Markup.button.callback('Otro', 'estilo_Otro')]
+            ]));
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        if (ctx.callbackQuery) {
+            ctx.wizard.state.f.estilo = ctx.callbackQuery.data.replace('estilo_', '');
+            ctx.answerCbQuery();
+            ctx.reply('🏥 Alergias o medicación actual:');
+            return ctx.wizard.next();
+        }
+        return ctx.reply('⚠️ Por favor, usa los botones para seleccionar un estilo.');
+    },
     (ctx) => { ctx.wizard.state.f.salud = ctx.message.text; ctx.reply('🖼️ Envía FOTO de referencia (Obligatorio):'); return ctx.wizard.next(); },
     (ctx) => {
-        if (!ctx.message.photo) return ctx.reply('⚠️ Envía una imagen.');
+        if (!ctx.message.photo) return ctx.reply('⚠️ Por favor, envía una imagen de referencia.');
         ctx.wizard.state.f.foto = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-        ctx.reply('📲 Tu WhatsApp (sin espacios):'); return ctx.wizard.next();
+        ctx.reply('📲 Tu número de WhatsApp:'); return ctx.wizard.next();
     },
     async (ctx) => {
         const d = ctx.wizard.state.f;
         d.telefono = ctx.message.text.replace(/\s+/g, '');
-        
-        // Ejecución de cálculo con Pluses
         const estimacion = calcularPresupuesto(d.tamano, d.zona, d.estilo);
         
-        await ctx.reply(`✅ SOLICITUD ENVIADA\n━━━━━━━━━━━━━━━━━━━━\n🤖 **ESTIMACIÓN AUTOMÁTICA:**\n> ${estimacion}\n\n📢 **NOTA DE TESTEO:**\nEste presupuesto es generado por un robot en fase de pruebas. El precio real y definitivo lo estipula el tatuador tras revisar la referencia.`);
+        await ctx.reply(`✅ SOLICITUD ENVIADA\n━━━━━━━━━━━━━━━━━━━━\n🤖 **ESTIMACIÓN AUTOMÁTICA:**\n> ${estimacion}\n\n📢 **NOTA DE TESTEO:**\nEste presupuesto es orientativo. El tatuador confirmará el precio final según el detalle.`);
         
         const fichaAdmin = `🖋️ NUEVA CITA\n👤 ${d.nombre}\n📍 ${d.zona}\n📏 ${d.tamano}\n🎨 ${d.estilo}\n💰 ${estimacion.replace(/\n/g, ' ')}\n📞 WA: ${d.telefono}`;
-        await ctx.telegram.sendMessage(MI_ID, fichaAdmin, Markup.inlineKeyboard([[Markup.button.url('📲 WHATSAPP', `https://wa.me/${d.telefono}`)]]));
+        await ctx.telegram.sendMessage(MI_ID, fichaAdmin, Markup.inlineKeyboard([[Markup.button.url('📲 CONTACTAR', `https://wa.me/${d.telefono}`)]]));
         await ctx.telegram.sendPhoto(MI_ID, d.foto);
         return ctx.scene.leave();
     }
 );
 
+// --- ESCENA IDEAS (AMPLIADA) ---
 const ideasScene = new Scenes.WizardScene('ideas-scene',
     (ctx) => {
-        ctx.reply('💡 A S E S O R Í A\n━━━━━━━━━━━━━━━━━━━━\nSelecciona zona:', Markup.keyboard([['Antebrazo', 'Costillas'], ['Cuello', 'Mano'], ['⬅️ Volver']]).resize());
+        ctx.reply('💡 A S E S O R Í A  D E  Z O N A S\n━━━━━━━━━━━━━━━━━━━━\nSelecciona una zona:', 
+            Markup.keyboard([
+                ['Antebrazo', 'Bíceps', 'Hombro'],
+                ['Costillas', 'Esternón', 'Espalda'],
+                ['Muslo', 'Gemelo', 'Tobillo'],
+                ['Mano', 'Cuello', 'Muñeca'],
+                ['⬅️ Volver al Menú']
+            ]).resize());
         return ctx.wizard.next();
     },
     (ctx) => {
-        if (ctx.message.text.includes('Volver')) return ctx.scene.leave();
-        ctx.reply(`Has elegido ${ctx.message.text}. Es una zona excelente para diseños sólidos.`);
-        return ctx.scene.leave();
+        const msg = ctx.message.text;
+        if (msg.includes('Volver')) { ctx.scene.leave(); return irAlMenuPrincipal(ctx); }
+        const consejos = {
+            'Antebrazo': "💪 Zona ideal para primer tatuaje y lettering legible.",
+            'Costillas': "⚖️ Zona elegante pero sensible. Requiere paciencia.",
+            'Cuello': "🔥 Estética potente. El diseño debe fluir con el movimiento.",
+            'Mano': "🤚 Zona de mucho desgaste. Requiere líneas muy sólidas.",
+            'Bíceps': "🛡️ Perfecto para piezas con volumen y sombreados.",
+            'Espalda': "🦅 El mejor lienzo para piezas de gran tamaño.",
+            'Esternón': "💀 Sensibilidad alta. Los diseños simétricos quedan increíbles.",
+            'Muslo': "🦵 Ideal para realismo y piezas muy detalladas.",
+            'Gemelo': "⚡ Muy agradecido para sombreados y estilo tradicional.",
+            'Muñeca': "✨ Perfecto para detalles finos y minimalismo.",
+            'Tobillo': "⚓ Zona discreta y fina."
+        };
+        ctx.reply(consejos[msg] || "✨ Selecciona una opción del menú.");
+        ctx.scene.leave(); return irAlMenuPrincipal(ctx);
     }
 );
 
@@ -190,22 +219,20 @@ bot.start(async (ctx) => {
     return irAlMenuPrincipal(ctx);
 });
 
+bot.hears('💡 Consultar Ideas', (ctx) => ctx.scene.enter('ideas-scene'));
+bot.hears('🔥 Hablar con el Tatuador', (ctx) => ctx.scene.enter('tattoo-wizard'));
+bot.hears('💉 Minar Tinta', (ctx) => ctx.scene.enter('mine-scene'));
 bot.hears('👥 Mis Referidos', (ctx) => {
     const uid = ctx.from.id;
-    const total = db.referidos[uid] || 0;
-    const confirmados = db.confirmados[uid] || 0;
-    
-    ctx.reply(`👥 S O C I O S\n━━━━━━━━━━━━━━━━━━━━\n\n🔗 Link:\nhttps://t.me/SpicyInkBot?start=${uid}\n\n📊 Stats: ${confirmados} / 3 confirmados.`, {
-        parse_mode: 'HTML',
-        ...Markup.inlineKeyboard([[Markup.button.callback('✅ ¡ME HE TATUADO!', 'reportar_tatuaje')]])
-    });
+    ctx.reply(`👥 S O C I O S\n━━━━━━━━━━━━━━━━━━━━\n🔗 Enlace: https://t.me/SpicyInkBot?start=${uid}\n📊 Confirmados: ${db.confirmados[uid] || 0} / 3`,
+        Markup.inlineKeyboard([[Markup.button.callback('✅ ¡ME HE TATUADO!', 'reportar_tatuaje')]]));
 });
 
 bot.action('reportar_tatuaje', async (ctx) => {
     const sponsorId = db.invitados[ctx.from.id];
     if (!sponsorId) return ctx.answerCbQuery('⚠️ No tienes sponsor.');
     await ctx.reply('✅ Reporte enviado al tatuador.');
-    await ctx.telegram.sendMessage(MI_ID, `🔔 VALIDACIÓN\nUsuario: ${getUserLink(ctx)} se ha tatuado.\nSponsor: ${sponsorId}`, {
+    await ctx.telegram.sendMessage(MI_ID, `🔔 VALIDACIÓN\nUser: ${getUserLink(ctx)}\nSponsor: ${sponsorId}`, {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([[Markup.button.callback('✅ ACEPTAR', `v_si_${ctx.from.id}_${sponsorId}`)]])
     });
@@ -219,15 +246,10 @@ bot.action(/^v_si_(\d+)_(\d+)$/, async (ctx) => {
     await ctx.telegram.sendMessage(sid, `🔥 ¡Referido confirmado! (${db.confirmados[sid]}/3)`);
 });
 
-// ==========================================
-// 7. LISTENERS GLOBALES
-// ==========================================
-bot.hears('🔥 Hablar con el Tatuador', (ctx) => ctx.scene.enter('tattoo-wizard'));
-bot.hears('💉 Minar Tinta', (ctx) => ctx.scene.enter('mine-scene'));
-bot.hears('💡 Consultar Ideas', (ctx) => ctx.scene.enter('ideas-scene'));
-bot.hears('🧼 Cuidados', (ctx) => ctx.reply('🧼 CUIDADOS:\n1. Jabón neutro.\n2. Crema cicatrizante.\n3. No sol ni piscina.'));
-bot.hears('🎁 Sorteos', (ctx) => ctx.reply('🎁 PRÓXIMO SORTEO: 05 de Febrero. ¡Atento al canal!'));
+bot.hears('🧼 Cuidados', (ctx) => ctx.reply('🧼 CUIDADOS:\nJabón neutro, crema específica y evitar sol/piscina durante 15 días.'));
+bot.hears('🎁 Sorteos', (ctx) => ctx.reply('🎁 Consulta el canal principal para participar en el sorteo actual.'));
+
+bot.launch().then(() => console.log('🚀 Tatuador Online con Lettering'));
 
 
 
-bot.launch().then(() => console.log('🚀 Tatuador Online con Lógica de Pluses'));
