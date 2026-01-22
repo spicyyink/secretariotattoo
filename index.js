@@ -65,7 +65,6 @@ function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
         base += `\n⚠️ FACTORES DE AJUSTE:\n└ ${pluses.join("\n└ ")}`;
     }
     
-    // NOTA OBLIGATORIA SOBRE EL ROBOT
     base += `\n\n📢 **AVISO:** Este presupuesto ha sido generado automáticamente por un robot con fines puramente orientativos. El precio real y definitivo será estipulado únicamente por el tatuador tras revisar personalmente el diseño final.`;
     
     return base;
@@ -165,17 +164,41 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     }
 );
 
+// --- ESCENA IDEAS (BLOQUE COMPLETADO) ---
 const ideasScene = new Scenes.WizardScene('ideas-scene',
     (ctx) => {
-        ctx.reply('💡 A S E S O R Í A\n━━━━━━━━━━━━━━━━━━━━\nSelecciona una zona:', 
-            Markup.keyboard([['Antebrazo', 'Costillas'], ['Espalda', 'Cuello'], ['⬅️ Volver']]).resize());
+        ctx.reply('💡 A S E S O R Í A  D E  Z O N A S\n━━━━━━━━━━━━━━━━━━━━\nSelecciona una zona para ver consejos técnicos:', 
+            Markup.keyboard([
+                ['Antebrazo', 'Bíceps', 'Hombro'],
+                ['Costillas', 'Esternón', 'Espalda'],
+                ['Muslo', 'Gemelo', 'Tobillo'],
+                ['Mano', 'Cuello', 'Muñeca'],
+                ['⬅️ Volver al Menú']
+            ]).resize());
         return ctx.wizard.next();
     },
     (ctx) => {
         const msg = ctx.message.text;
         if (msg.includes('Volver')) { ctx.scene.leave(); return irAlMenuPrincipal(ctx); }
-        ctx.reply(`Has seleccionado ${msg}. Consulta con el tatuador para diseños personalizados.`);
-        return ctx.scene.leave();
+        
+        const consejos = {
+            'Antebrazo': "💪 Zona ideal para primer tatuaje. Envejece muy bien y luce genial con Lettering.",
+            'Costillas': "⚖️ Zona elegante pero de sensibilidad alta. Se recomiendan diseños de línea fina.",
+            'Cuello': "🔥 Estética potente. El diseño debe adaptarse al movimiento natural del cuerpo.",
+            'Mano': "🤚 Desgaste alto por regeneración de piel. Requiere líneas sólidas.",
+            'Bíceps': "🛡️ Mucho lienzo para realismo o piezas con gran volumen y sombras.",
+            'Espalda': "🦅 El lienzo más grande. Permite composiciones complejas y piezas XL.",
+            'Esternón': "💀 Sensibilidad alta. Los diseños simétricos lucen increíbles aquí.",
+            'Muslo': "🦵 Excelente para piezas grandes y uso de color.",
+            'Gemelo': "⚡ Muy agradecido para sombras y estilo tradicional.",
+            'Muñeca': "✨ Ideal para detalles minimalistas.",
+            'Tobillo': "⚓ Zona discreta y fina. Cuidado con el roce del calzado al curar.",
+            'Hombro': "🔱 Clásico que mantiene muy bien la forma con los años."
+        };
+
+        ctx.reply(consejos[msg] || "✨ Selecciona una zona del menú.");
+        ctx.scene.leave(); 
+        return irAlMenuPrincipal(ctx);
     }
 );
 
@@ -233,5 +256,7 @@ bot.hears('🧼 Cuidados', (ctx) => ctx.reply('🧼 CUIDADOS:\nJabón neutro y c
 bot.hears('🎁 Sorteos', (ctx) => {
     ctx.reply('🎁 S O R T E O  A C T I V O\n━━━━━━━━━━━━━━━━━━━━\n📅 Fecha: 05 al 10 de Febrero de 2026\n💰 Premio: TATTOO VALORADO EN 150€\n\n👇 Participa aquí:\nhttps://t.me/+bAbJXSaI4rE0YzM0', { disable_web_page_preview: true });
 });
+
+
 
 bot.launch().then(() => console.log('🚀 Tatuador Online Actualizado 2026'));
