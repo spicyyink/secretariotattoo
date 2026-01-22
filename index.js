@@ -24,7 +24,7 @@ const getUserLink = (ctx) => {
 // ==========================================
 // 2. BASE DE DATOS LOCAL
 // ==========================================
-let db = { clics: {}, referidos: {}, confirmados: {}, invitados: {} };
+let db = { clics: {}, referidos: {}, confirmados: {}, invitados: {}, fichas: {} };
 const DATA_FILE = './database.json';
 
 if (fs.existsSync(DATA_FILE)) {
@@ -77,8 +77,9 @@ function irAlMenuPrincipal(ctx) {
     return ctx.reply('✨ S P I C Y  I N K ✨\n━━━━━━━━━━━━━━━━━━━━\nGestión de citas y eventos exclusivos.\n\nSelecciona una opción:',
         Markup.keyboard([
             ['🔥 Hablar con el Tatuador', '💉 Minar Tinta'],
-            ['💡 Consultar Ideas', '👥 Mis Referidos'],
-            ['🧼 Cuidados', '🎁 Sorteos']
+            ['💡 Consultar Ideas', '🤖 IA: ¿Qué me tatuo?'],
+            ['👥 Mis Referidos', '🧼 Cuidados'],
+            ['🎁 Sorteos']
         ]).resize()
     );
 }
@@ -113,7 +114,6 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     (ctx) => {
         if (ctx.message.text === 'Menor de 16') { ctx.reply('❌ Mínimo 16 años.'); return ctx.scene.leave(); }
         ctx.wizard.state.f.edad = ctx.message.text;
-        // Cambiado: Ahora muestra botones de zona iguales a los de Asesoría + Botón Otro
         ctx.reply('📍 Selecciona la zona del cuerpo:', 
             Markup.keyboard([
                 ['Antebrazo', 'Bíceps', 'Hombro'],
@@ -168,6 +168,10 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     async (ctx) => {
         const d = ctx.wizard.state.f;
         d.telefono = ctx.message.text.replace(/\s+/g, '');
+        // Guardamos en DB para que la IA sepa que ya tiene ficha
+        db.fichas[ctx.from.id] = d;
+        guardar();
+
         const estimacion = calcularPresupuesto(d.tamano, d.zona, d.estilo, d.tieneFoto);
         await ctx.reply(`✅ SOLICITUD ENVIADA\n━━━━━━━━━━━━━━━━━━━━\n${estimacion}`);
         const fichaAdmin = `🖋️ CITA\n👤 ${d.nombre}\n📍 ${d.zona}\n📏 ${d.tamano}\n🎨 ${d.estilo}\n💰 Estimado: ${estimacion.split('\n')[0]}\n📞 WA: ${d.telefono}`;
@@ -177,7 +181,6 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     }
 );
 
-// --- ESCENA IDEAS (BLOQUE COMPLETADO) ---
 const ideasScene = new Scenes.WizardScene('ideas-scene',
     (ctx) => {
         ctx.reply('💡 A S E S O R Í A  D E  Z O N A S\n━━━━━━━━━━━━━━━━━━━━\nSelecciona una zona para ver consejos técnicos:', 
@@ -260,8 +263,43 @@ bot.action(/^v_si_(\d+)_(\d+)$/, async (ctx) => {
 });
 
 // ==========================================
-// 7. LISTENERS GLOBALES
+// 7. LISTENERS GLOBALES E IA
 // ==========================================
+
+// --- LÓGICA DE IA CON VALIDACIÓN DE FICHA ---
+bot.hears('🤖 IA: ¿Qué me tatuo?', (ctx) => {
+    // Si NO tiene ficha en la DB, preguntamos
+    if (!db.fichas[ctx.from.id]) {
+        return ctx.reply('⚠️ **BLOQUEO DE SEGURIDAD**\n━━━━━━━━━━━━━━━━━━━━\nPara que la IA pueda darte una idea personalizada, primero necesito conocer tu estilo y zona favorita.\n\n¿Has enviado ya tu ficha de presupuesto?',
+            Markup.inlineKeyboard([
+                [Markup.button.callback('✅ SÍ, enviarla ahora', 'ir_a_formulario')],
+                [Markup.button.callback('❌ NO, volver', 'volver_ia')]
+            ])
+        );
+    }
+
+    // Si TIENE ficha, generamos idea
+    const f = db.fichas[ctx.from.id];
+    const ideas = [
+        `Un diseño Fine Line de una fase lunar en tu ${f.zona}.`,
+        `Estilo ${f.estilo} con elementos botánicos adaptados a tu ${f.zona}.`,
+        `Una pieza de realismo geométrico que aproveche el espacio de tu ${f.zona}.`,
+        `Micro-lettering minimalista con una palabra clave en tu ${f.zona}.`
+    ];
+    const idea = ideas[Math.floor(Math.random() * ideas.length)];
+    ctx.reply(`🧠 **SPICY AI ANALIZANDO...**\n━━━━━━━━━━━━━━━━━━━━\nBasado en tu interés por el estilo **${f.estilo}** y la zona **${f.zona}**, te sugiero:\n\n✨ ${idea}`);
+});
+
+bot.action('ir_a_formulario', (ctx) => {
+    ctx.answerCbQuery();
+    return ctx.scene.enter('tattoo-wizard');
+});
+
+bot.action('volver_ia', (ctx) => {
+    ctx.answerCbQuery();
+    return ctx.editMessageText('Entendido. Vuelve cuando quieras probar la IA.');
+});
+
 bot.hears('🔥 Hablar con el Tatuador', (ctx) => ctx.scene.enter('tattoo-wizard'));
 bot.hears('💉 Minar Tinta', (ctx) => ctx.scene.enter('mine-scene'));
 bot.hears('💡 Consultar Ideas', (ctx) => ctx.scene.enter('ideas-scene'));
