@@ -32,7 +32,7 @@ function guardar() {
 function irAlMenuPrincipal(ctx) {
     return ctx.reply('🔥 **MENÚ PRINCIPAL** 🔥\nElige una opción:',
         Markup.keyboard([
-            ['🔥 Hablar con SpicyBot', '💉 Minar Tinta'],
+            ['🔥 Hablar con Antonio', '💉 Minar Tinta'],
             ['💡 Consultar Ideas', '👥 Mis Referidos'],
             ['🧼 Cuidados', '🎁 Sorteos']
         ]).resize()
@@ -203,7 +203,7 @@ bot.action(/^v_no_(\d+)$/, async (ctx) => {
 // ==========================================
 // 6. LISTENERS GLOBALES
 // ==========================================
-bot.hears('🔥 Hablar con SpicyBot', (ctx) => ctx.scene.enter('tattoo-wizard'));
+bot.hears('🔥 Hablar con Antonio', (ctx) => ctx.scene.enter('tattoo-wizard'));
 bot.hears('💉 Minar Tinta', (ctx) => ctx.scene.enter('mine-scene'));
 bot.hears('💡 Consultar Ideas', (ctx) => ctx.scene.enter('ideas-scene'));
 
@@ -217,11 +217,11 @@ bot.hears('👥 Mis Referidos', (ctx) => {
 });
 
 bot.hears('🧼 Cuidados', (ctx) => {
-    ctx.reply('🧴 **CUIDADOS:**\n1. Jabón neutro.\n2. Bepanthol.\n3. Sin sol.');
+    ctx.reply('🧴 **CUIDADOS:**\n1. Jabón neutro🫧 3 veces dia..\n2. Bepanthol, aquaphor🧴... .\n3. Sin sol, sin piscina❌.');
 });
 
 bot.hears('🎁 Sorteos', (ctx) => {
-    ctx.reply('🎟️ **SORTEO ACTIVO**\n\n📅 **Fecha:** Del 05 al 10 de febrero de 2026.\n👉 **Participa aquí:** https://t.me/+bAbJXSaI4rE0YzM0');
+    ctx.reply('🎟️ **SORTEO ACTIVO**\n\n📅 **Fecha:** Del 🎖️05 al 10🎖️ de febrero de 2026.\n👉 **Participa aquí:** https://t.me/+bAbJXSaI4rE0YzM0');
 });
 
 bot.launch().then(() => console.log('🚀 SpicyBot Online'));
