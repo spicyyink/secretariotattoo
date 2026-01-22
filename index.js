@@ -223,9 +223,10 @@ bot.hears('👥 Mis Referidos', (ctx) => {
     const confirmados = db.confirmados[uid] || 0;
     bot.telegram.sendMessage(MI_ID, `👥 El usuario ${getUserLink(ctx)} entró a REFERIDOS.`, { parse_mode: 'HTML' });
     
-    ctx.reply(`👥 S O C I O S\n━━━━━━━━━━━━━━━━━━━━\n\n🔗 Enlace: https://t.me/SpicyInkBot?start=${uid}\n\n📊 Stats:\n• Clics: ${total}\n• Confirmados: ${confirmados} / 3\n\n🎁 Premio: 50% DTO`,
-        Markup.inlineKeyboard([[Markup.button.callback('✅ ¡ME HE TATUADO!', 'reportar_tatuaje')]])
-    );
+    ctx.reply(`👥 S O C I O S\n━━━━━━━━━━━━━━━━━━━━\n\n🔗 Enlace: https://t.me/SpicyInkBot?start=${uid}\n\n📊 Stats:\n• Clics: ${total}\n• Confirmados: ${confirmados} / 3\n\n📜 FUNCIONAMIENTO:\n<code>Si consigues que 3 personas de tu lista de invitados se tatúen, recibirás:\n\n✅ 100% DTO en Tatuaje Pequeño/Mediano\n✅ 50% DTO en Tatuaje Grande</code>\n\n👇 ¿Te has tatuado ya? Pulsa abajo:`, {
+        parse_mode: 'HTML',
+        ...Markup.inlineKeyboard([[Markup.button.callback('✅ ¡ME HE TATUADO!', 'reportar_tatuaje')]])
+    });
 });
 
 bot.hears('🧼 Cuidados', (ctx) => {
