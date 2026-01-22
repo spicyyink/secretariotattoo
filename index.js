@@ -1,171 +1,163 @@
 require('dotenv').config();
-
 const { Telegraf, Scenes, session, Markup } = require('telegraf');
 const http = require('http');
+const fs = require('fs');
 
 // ==========================================
-// SERVIDOR DE SALUD (Mantiene el bot vivo)
+// SERVIDOR DE SALUD (Obligatorio para Render)
 // ==========================================
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('SpicyBot está online ✅');
+    res.end('SpicyBot Online ✅');
 });
-
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Servidor en puerto ${PORT}`));
+server.listen(PORT);
 
-// ==========================================
-// CONFIGURACIÓN DEL BOT
-// ==========================================
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const MI_ID = process.env.MI_ID;
 
-// --- ESCENA DE IDEAS ---
-const ideasScene = new Scenes.WizardScene(
-    'ideas-scene',
-    (ctx) => {
-        ctx.reply('¿En qué zona estás pensando?',
-            Markup.keyboard([['Rodilla', 'Codo', 'Cuello'], ['Tríceps', 'Bíceps', 'Antebrazo'], ['⬅️ Volver']]).oneTime().resize());
-        return ctx.wizard.next();
-    },
-    (ctx) => {
-        const zona = ctx.message.text ? ctx.message.text.toLowerCase() : '';
-        if (zona.includes('volver')) return irAlMenuPrincipal(ctx);
-        ctx.reply('🌟 Mi consejo: Para esa zona busca algo que fluya con tu anatomía.');
-        setTimeout(() => irAlMenuPrincipal(ctx), 1500);
-        return ctx.scene.leave();
-    }
-);
+// ==========================================
+// PERSISTENCIA DE DATOS (JSON LOCAL)
+// ==========================================
+let db = { clics: {}, referidos: {}, confirmados: {}, invitados: {} };
+const DATA_FILE = './database.json';
 
-// --- ESCENA DE PRESUPUESTO (FORMULARIO) ---
-const tattooScene = new Scenes.WizardScene(
-    'tattoo-wizard',
-    (ctx) => {
-        ctx.reply('¡Hola! Soy SpicyBot, tu asistente personal.\n\n¿Cómo te llamas?');
-        ctx.wizard.state.formData = { user: ctx.from.username ? `@${ctx.from.username}` : 'Sin alias' };
-        return ctx.wizard.next();
-    },
-    (ctx) => {
-        ctx.wizard.state.formData.nombre = ctx.message.text;
-        // Se añade el botón de +16 años
-        ctx.reply('¿Qué edad tienes?', Markup.keyboard([['Sí, soy mayor', '+16 años'], ['Menor de 16']]).oneTime().resize());
-        return ctx.wizard.next();
-    },
-    (ctx) => {
-        const respuestaEdad = ctx.message.text;
-        
-        if (respuestaEdad === 'Menor de 16') {
-            ctx.reply('Lo siento, el estudio no realiza tatuajes a menores de 16 años.');
-            return ctx.scene.leave();
-        }
-        
-        ctx.wizard.state.formData.edad = respuestaEdad;
-        ctx.reply('¿Sufres de alergias o tomas alguna medicación?', 
-            Markup.keyboard([['No, todo bien'], ['Sí (especificar)', 'No lo sé']]).oneTime().resize());
-        return ctx.wizard.next();
-    },
-    (ctx) => {
-        ctx.wizard.state.formData.salud = ctx.message.text;
-        ctx.reply('¿Cuál es tu número de teléfono?', Markup.removeKeyboard());
-        return ctx.wizard.next();
-    },
-    (ctx) => {
-        ctx.wizard.state.formData.telefono = ctx.message.text;
-        ctx.reply('¿Qué diseño tienes en mente?');
-        return ctx.wizard.next();
-    },
-    (ctx) => {
-        ctx.wizard.state.formData.idea = ctx.message.text;
-        ctx.reply('¿Qué tamaño aproximado quieres en cm?', 
-            Markup.keyboard([['No lo sé, prefiero que me asesores']]).oneTime().resize());
-        return ctx.wizard.next();
-    },
-    (ctx) => {
-        ctx.wizard.state.formData.tamano = ctx.message.text;
-        ctx.reply('¿Tienes cicatrices o lunares en esa zona?', 
-            Markup.keyboard([['Piel limpia', 'Tengo cicatrices/lunares']]).oneTime().resize());
-        return ctx.wizard.next();
-    },
-    (ctx) => {
-        ctx.wizard.state.formData.piel = ctx.message.text;
-        ctx.reply('¿Qué horario prefieres para tu cita?', 
-            Markup.keyboard([['Mañanas', 'Tardes'], ['Cualquier horario']]).oneTime().resize());
-        return ctx.wizard.next();
-    },
-    (ctx) => {
-        ctx.wizard.state.formData.horario = ctx.message.text;
-        ctx.reply('Envíame una foto de referencia o de la zona:', Markup.keyboard([['❌ No tengo foto']]).oneTime().resize());
-        return ctx.wizard.next();
-    },
-    async (ctx) => {
-        const d = ctx.wizard.state.formData;
-        let photoId = ctx.message.photo ? ctx.message.photo[ctx.message.photo.length - 1].file_id : null;
-        await ctx.reply('¡Ficha enviada! Revisaré tu caso y te contactaré pronto.', Markup.removeKeyboard());
-
-        const ficha = `🖋️ NUEVA SOLICITUD\n\n👤 Nombre: ${d.nombre}\n🔞 Edad: ${d.edad}\n🏥 Salud: ${d.salud}\n📞 WhatsApp: ${d.telefono}\n💡 Idea: ${d.idea}\n📏 Tamaño: ${d.tamano}\n🩹 Piel: ${d.piel}\n🕒 Horario: ${d.horario}`;
-        
-        await ctx.telegram.sendMessage(MI_ID, ficha, {
-            ...Markup.inlineKeyboard([[Markup.button.url('💬 Abrir WhatsApp', `https://wa.me/${d.telefono.replace(/\D/g, '')}`)]])
-        });
-        if (photoId) await ctx.telegram.sendPhoto(MI_ID, photoId);
-        setTimeout(() => irAlMenuPrincipal(ctx), 2000);
-        return ctx.scene.leave();
-    }
-);
-
-// --- MENÚ PRINCIPAL ---
-function irAlMenuPrincipal(ctx) {
-    return ctx.reply('Bienvenido a Spicy Inkk 🖋️\n¿En qué puedo ayudarte?', 
-        Markup.keyboard([
-            ['🔥 Hablar con SpicyBot'],
-            ['💡 Consultar Ideas', '🧼 Cuidados'],
-            ['🎁 Sorteos', '📅 Huecos Libres']
-        ]).oneTime().resize());
+if (fs.existsSync(DATA_FILE)) {
+    db = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
 }
 
-// --- LÓGICA DE BOTONES ---
+function guardar() {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
+}
 
-// Cuidados
-bot.hears('🧼 Cuidados', (ctx) => {
-    const texto = '✨ **MI GUÍA PROFESIONAL DE CUIDADOS** ✨\n\n' +
-        '1. **LAVA**: 3 veces al día con jabón neutro y agua tibia.\n' +
-        '2. **SECA**: Siempre con papel de cocina a toques, nunca con toalla.\n' +
-        '3. **HIDRATA**: Aplica una capa muy fina de crema específica.\n' +
-        '4. **PROHIBIDO**: Sol, piscinas, playa y rascar las costras por 15 días.\n\n' +
-        '----------------------------------\n' +
-        '✨ **MI RECOMENDACIÓN DE CREMAS** ✨\n\n' +
-        '✅ **Aquaphor (Eucerin)**: Mi favorita. Repara la piel sin obstruir el poro.\n' +
-        '✅ **Bepanthol Tatuaje**: Opción clásica con provitamina B5.\n' +
-        '⚠️ **Nivea**: Úsala con precaución. Prefiero que compres las anteriores para asegurar el mejor acabado.\n\n' +
-        'Si tienes dudas o notas inflamación excesiva, escríbeme directamente.';
-    ctx.reply(texto, { parse_mode: 'Markdown' });
+// ==========================================
+// ESCENA: MINERÍA (SIN LAG)
+// ==========================================
+const mineScene = new Scenes.WizardScene(
+    'mine-scene',
+    (ctx) => {
+        const userId = ctx.from.id;
+        const clics = db.clics[userId] || 0;
+        ctx.reply(`⛏️ **MODO MINERÍA SPICY**\n\nLlevas: **${clics}/1000** clics.\n\n🎁 **PREMIO:** MINI TATTOO de 15€.\n\n¡Dale al botón para sumar!`,
+        Markup.inlineKeyboard([
+            [Markup.button.callback('⛏️ ¡MINAR!', 'minar_punto')],
+            [Markup.button.callback('⬅️ Menú Principal', 'volver_menu')]
+        ]));
+        return ctx.wizard.next();
+    },
+    (ctx) => { return; }
+);
+
+// Lógica de botones de minería
+bot.action('minar_punto', async (ctx) => {
+    const userId = ctx.from.id;
+    db.clics[userId] = (db.clics[userId] || 0) + 1;
+    guardar();
+
+    if (db.clics[userId] >= 1000) {
+        await ctx.editMessageText(`🎉 **¡ENHORABUENA!**\n\nHas llegado a los 1000 clics.\n🎁 Has ganado un **MINI TATTOO de 15€**.\n\n📸 Captura esta pantalla para canjearlo.`);
+        db.clics[userId] = 0;
+        guardar();
+        return ctx.answerCbQuery();
+    }
+
+    try {
+        await ctx.editMessageText(`⛏️ **MODO MINERÍA SPICY**\n\nLlevas: **${db.clics[userId]}/1000** clics.\n\n🎁 **PREMIO:** MINI TATTOO de 15€.\n\n¡No te detengas!`,
+        Markup.inlineKeyboard([
+            [Markup.button.callback('⛏️ ¡MINAR!', 'minar_punto')],
+            [Markup.button.callback('⬅️ Menú Principal', 'volver_menu')]
+        ]));
+    } catch (e) {}
+    return ctx.answerCbQuery();
 });
 
-// Sorteos
-bot.hears('🎁 Sorteos', (ctx) => {
-    ctx.reply(
-        '🎉 **MI SORTEO ACTIVO EN TELEGRAM** 🎉\n\n' +
-        '¡Estoy de sorteo! No pierdas la oportunidad de participar.\n\n' +
-        '📅 **Fechas:** Se celebra del 5 al 10 de febrero de 2026.\n\n' +
-        '👉 **Participa aquí:** https://t.me/+bAbJXSaI4rE0YzM0\n\n' +
-        '¡Mucha suerte! 🖋️', 
-        { parse_mode: 'Markdown' }
-    );
-});
+// ==========================================
+// ESCENA: TATTOO (10 PREGUNTAS)
+// ==========================================
+const tattooScene = new Scenes.WizardScene(
+    'tattoo-wizard',
+    (ctx) => { ctx.reply('1️⃣ ¿Cómo te llamas?'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('2️⃣ ¿Qué edad tienes?', Markup.keyboard([['+18 años', '+16 años'], ['Menor de 16']]).oneTime().resize()); return ctx.wizard.next(); },
+    (ctx) => {
+        if (ctx.message.text === 'Menor de 16') { ctx.reply('Lo siento, mínimo 16 años.'); return ctx.scene.leave(); }
+        ctx.wizard.state.f.edad = ctx.message.text;
+        ctx.reply('3️⃣ ¿En qué zona del cuerpo quieres el tattoo?');
+        return ctx.wizard.next();
+    },
+    (ctx) => { ctx.wizard.state.f.zona = ctx.message.text; ctx.reply('4️⃣ ¿Qué diseño tienes en mente?'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.idea = ctx.message.text; ctx.reply('5️⃣ ¿Qué estilo prefieres? (Fine line, Blackwork...)'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.estilo = ctx.message.text; ctx.reply('6️⃣ ¿Tamaño aproximado en cm?'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.tamano = ctx.message.text; ctx.reply('7️⃣ ¿Alergias o medicación?'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.salud = ctx.message.text; ctx.reply('8️⃣ ¿Cicatrices o lunares en la zona?'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.horario = ctx.message.text; ctx.reply('9️⃣ ¿Horario preferido?'); return ctx.wizard.next(); },
+    (ctx) => { ctx.reply('🔟 Envía una foto de referencia:'); return ctx.wizard.next(); },
+    async (ctx) => {
+        const d = ctx.wizard.state.f;
+        let photo = ctx.message.photo ? ctx.message.photo[ctx.message.photo.length - 1].file_id : null;
+        await ctx.reply('✅ Ficha enviada. Contactaremos contigo.', Markup.removeKeyboard());
+        const ficha = `🖋️ NUEVA SOLICITUD\n👤 ${d.nombre} (${d.edad})\n📍 Zona: ${d.zona}\n💡 Idea: ${d.idea}\n📏 Tam: ${d.tamano}`;
+        await ctx.telegram.sendMessage(MI_ID, ficha);
+        if (photo) await ctx.telegram.sendPhoto(MI_ID, photo);
+        return irAlMenuPrincipal(ctx);
+    }
+);
 
-// Cancelaciones
-bot.hears('📅 Huecos Libres', (ctx) => {
-    ctx.reply('⚡ **AVISO DE CANCELACIONES** ⚡\n\n¿Quieres un tatuaje pronto? Cuando tengo cancelaciones de última hora, publico los huecos en mis Stories de Instagram.\n\nSi quieres que te avise personalmente, dímelo al rellenar tu ficha en "Hablar con SpicyBot".', { parse_mode: 'Markdown' });
-});
+// ==========================================
+// MENÚ Y LÓGICA GENERAL
+// ==========================================
+function irAlMenuPrincipal(ctx) {
+    if (ctx.scene) ctx.scene.leave();
+    return ctx.reply('Bienvenido a Spicy Inkk 🖋️', 
+        Markup.keyboard([
+            ['🔥 Hablar con SpicyBot', '⛏️ Minar Tinta'],
+            ['💡 Consultar Ideas', '👥 Mis Referidos'],
+            ['🧼 Cuidados', '🎁 Sorteos']
+        ]).resize());
+}
 
-// --- INICIO ---
-const stage = new Scenes.Stage([tattooScene, ideasScene]);
+const stage = new Scenes.Stage([tattooScene, mineScene]);
 bot.use(session());
 bot.use(stage.middleware());
 
-bot.start((ctx) => irAlMenuPrincipal(ctx));
-bot.hears('🔥 Hablar con SpicyBot', (ctx) => ctx.scene.enter('tattoo-wizard'));
-bot.hears('💡 Consultar Ideas', (ctx) => ctx.scene.enter('ideas-scene'));
+bot.start((ctx) => {
+    const payload = ctx.startPayload;
+    if (payload && payload !== String(ctx.from.id)) {
+        db.invitados[ctx.from.id] = parseInt(payload);
+        db.referidos[payload] = (db.referidos[payload] || 0) + 1;
+        guardar();
+    }
+    return irAlMenuPrincipal(ctx);
+});
 
-bot.launch().then(() => console.log('✅ SpicyBot Operativo'));
-bot.catch((err) => console.error(err));l
+bot.hears('⛏️ Minar Tinta', (ctx) => ctx.scene.enter('mine-scene'));
+bot.hears('🔥 Hablar con SpicyBot', (ctx) => ctx.scene.enter('tattoo-wizard'));
+bot.hears('👥 Mis Referidos', (ctx) => {
+    const uid = ctx.from.id;
+    const n = db.confirmados[uid] || 0;
+    ctx.reply(`👥 **REFERIDOS**\n\nTattoos confirmados de amigos: **${n}/3**\n\n🎁 **Premio:** 50% Dto.\n\nTu link: https://t.me/SpicyInkBot?start=${uid}`,
+    Markup.inlineKeyboard([[Markup.button.callback('✅ Ya me he tatuado', 'validar_tattoo')]]));
+});
+
+bot.action('validar_tattoo', (ctx) => {
+    const inviterId = db.invitados[ctx.from.id];
+    if (!inviterId) return ctx.reply('No vienes de parte de nadie.');
+    bot.telegram.sendMessage(MI_ID, `❓ ¿Confirmas tattoo de @${ctx.from.username}?`, 
+    Markup.inlineKeyboard([[Markup.button.callback('SÍ', `conf_${ctx.from.id}_${inviterId}`)]]));
+    ctx.reply('Solicitud enviada.');
+});
+
+bot.action(/conf_(.+)_(.+)/, (ctx) => {
+    const invId = ctx.match[2];
+    db.confirmados[invId] = (db.confirmados[invId] || 0) + 1;
+    guardar();
+    ctx.editMessageText('✅ Confirmado.');
+    bot.telegram.sendMessage(invId, `🔥 ¡Un amigo se tatuó! Llevas ${db.confirmados[invId]}/3.`);
+});
+
+bot.action('volver_menu', async (ctx) => { await ctx.answerCbQuery(); await ctx.deleteMessage(); return irAlMenuPrincipal(ctx); });
+
+// Lanzamiento seguro para Render
+bot.launch().then(() => console.log('Bot Online'));
+
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
