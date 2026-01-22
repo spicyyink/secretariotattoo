@@ -28,7 +28,12 @@ let db = { clics: {}, referidos: {}, confirmados: {}, invitados: {}, fichas: {} 
 const DATA_FILE = './database.json';
 
 if (fs.existsSync(DATA_FILE)) {
-    try { db = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8')); } catch (e) {}
+    try { 
+        const contenido = fs.readFileSync(DATA_FILE, 'utf-8');
+        db = JSON.parse(contenido);
+        // Aseguramos que existan todas las propiedades necesarias
+        if (!db.fichas) db.fichas = {};
+    } catch (e) { console.log("Error al cargar DB, usando valores por defecto."); }
 }
 
 function guardar() {
@@ -168,7 +173,8 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     async (ctx) => {
         const d = ctx.wizard.state.f;
         d.telefono = ctx.message.text.replace(/\s+/g, '');
-        // Guardamos en DB para que la IA sepa que ya tiene ficha
+        
+        // Guardamos en la base de datos la ficha vinculada al ID del usuario
         db.fichas[ctx.from.id] = d;
         guardar();
 
@@ -266,11 +272,11 @@ bot.action(/^v_si_(\d+)_(\d+)$/, async (ctx) => {
 // 7. LISTENERS GLOBALES E IA
 // ==========================================
 
-// --- LÓGICA DE IA CON VALIDACIÓN DE FICHA ---
+// --- LÓGICA DE IA CON PREGUNTA DE FICHA ---
 bot.hears('🤖 IA: ¿Qué me tatuo?', (ctx) => {
-    // Si NO tiene ficha en la DB, preguntamos
+    // Si el usuario NO tiene una ficha guardada, lanzamos el bloqueo con botones
     if (!db.fichas[ctx.from.id]) {
-        return ctx.reply('⚠️ **BLOQUEO DE SEGURIDAD**\n━━━━━━━━━━━━━━━━━━━━\nPara que la IA pueda darte una idea personalizada, primero necesito conocer tu estilo y zona favorita.\n\n¿Has enviado ya tu ficha de presupuesto?',
+        return ctx.reply('🤖 **BLOQUEO DE IA**\n━━━━━━━━━━━━━━━━━━━━\nPara generar ideas personalizadas necesito conocer tu estilo y zona preferida.\n\n¿Has enviado ya tu ficha de presupuesto?',
             Markup.inlineKeyboard([
                 [Markup.button.callback('✅ SÍ, enviarla ahora', 'ir_a_formulario')],
                 [Markup.button.callback('❌ NO, volver', 'volver_ia')]
@@ -278,16 +284,17 @@ bot.hears('🤖 IA: ¿Qué me tatuo?', (ctx) => {
         );
     }
 
-    // Si TIENE ficha, generamos idea
+    // Si ya existe la ficha, generamos la idea basada en sus datos
     const f = db.fichas[ctx.from.id];
-    const ideas = [
-        `Un diseño Fine Line de una fase lunar en tu ${f.zona}.`,
-        `Estilo ${f.estilo} con elementos botánicos adaptados a tu ${f.zona}.`,
-        `Una pieza de realismo geométrico que aproveche el espacio de tu ${f.zona}.`,
-        `Micro-lettering minimalista con una palabra clave en tu ${f.zona}.`
+    const ideasSugestivas = [
+        `Un diseño Fine Line de una fase lunar con detalles geométricos en tu ${f.zona}.`,
+        `Una composición de estilo ${f.estilo} que fluya con la musculatura de tu ${f.zona}.`,
+        `Un concepto minimalista con sombras suaves optimizado para tu ${f.zona}.`,
+        `Una pieza de Lettering caligráfico que envuelva parte de tu ${f.zona}.`
     ];
-    const idea = ideas[Math.floor(Math.random() * ideas.length)];
-    ctx.reply(`🧠 **SPICY AI ANALIZANDO...**\n━━━━━━━━━━━━━━━━━━━━\nBasado en tu interés por el estilo **${f.estilo}** y la zona **${f.zona}**, te sugiero:\n\n✨ ${idea}`);
+    const ideaElegida = ideasSugestivas[Math.floor(Math.random() * ideasSugestivas.length)];
+    
+    ctx.reply(`🧠 **SPICY AI ANALIZANDO...**\n━━━━━━━━━━━━━━━━━━━━\nDetectado: Estilo ${f.estilo} en la zona ${f.zona}.\n\n✨ **Sugerencia:** ${ideaElegida}`);
 });
 
 bot.action('ir_a_formulario', (ctx) => {
