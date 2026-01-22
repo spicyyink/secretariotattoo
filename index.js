@@ -4,7 +4,7 @@ const http = require('http');
 const fs = require('fs');
 
 // ==========================================
-// SERVIDOR DE SALUD (Obligatorio para Render)
+// SERVIDOR DE SALUD (Render)
 // ==========================================
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -17,7 +17,7 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 const MI_ID = process.env.MI_ID;
 
 // ==========================================
-// PERSISTENCIA DE DATOS (JSON LOCAL)
+// PERSISTENCIA DE DATOS
 // ==========================================
 let db = { clics: {}, referidos: {}, confirmados: {}, invitados: {} };
 const DATA_FILE = './database.json';
@@ -31,7 +31,7 @@ function guardar() {
 }
 
 // ==========================================
-// ESCENA: MINERÍA (SIN LAG)
+// ESCENA: MINERÍA (CORREGIDA)
 // ==========================================
 const mineScene = new Scenes.WizardScene(
     'mine-scene',
@@ -45,20 +45,21 @@ const mineScene = new Scenes.WizardScene(
         ]));
         return ctx.wizard.next();
     },
-    (ctx) => { return; }
+    (ctx) => { return; } // Ignora texto, solo botones
 );
 
-// Lógica de botones de minería
+// Lógica de botones de minería (FUERA de la escena para evitar bloqueos)
 bot.action('minar_punto', async (ctx) => {
     const userId = ctx.from.id;
     db.clics[userId] = (db.clics[userId] || 0) + 1;
     guardar();
 
     if (db.clics[userId] >= 1000) {
+        await ctx.answerCbQuery('¡OBJETIVO LOGRADO! 🎉');
         await ctx.editMessageText(`🎉 **¡ENHORABUENA!**\n\nHas llegado a los 1000 clics.\n🎁 Has ganado un **MINI TATTOO de 15€**.\n\n📸 Captura esta pantalla para canjearlo.`);
         db.clics[userId] = 0;
         guardar();
-        return ctx.answerCbQuery();
+        return;
     }
 
     try {
@@ -69,6 +70,14 @@ bot.action('minar_punto', async (ctx) => {
         ]));
     } catch (e) {}
     return ctx.answerCbQuery();
+});
+
+// ACCIÓN PARA VOLVER AL MENÚ (ARREGLA EL BLOQUEO)
+bot.action('volver_menu', async (ctx) => {
+    await ctx.answerCbQuery(); // Quita el "cargando"
+    if (ctx.scene) await ctx.scene.leave(); // Cierra la escena de minería
+    try { await ctx.deleteMessage(); } catch (e) {} // Borra el mensaje de minería
+    return irAlMenuPrincipal(ctx);
 });
 
 // ==========================================
@@ -103,10 +112,9 @@ const tattooScene = new Scenes.WizardScene(
 );
 
 // ==========================================
-// MENÚ Y LÓGICA GENERAL
+// LÓGICA GENERAL
 // ==========================================
 function irAlMenuPrincipal(ctx) {
-    if (ctx.scene) ctx.scene.leave();
     return ctx.reply('Bienvenido a Spicy Inkk 🖋️', 
         Markup.keyboard([
             ['🔥 Hablar con SpicyBot', '⛏️ Minar Tinta'],
@@ -154,10 +162,8 @@ bot.action(/conf_(.+)_(.+)/, (ctx) => {
     bot.telegram.sendMessage(invId, `🔥 ¡Un amigo se tatuó! Llevas ${db.confirmados[invId]}/3.`);
 });
 
-bot.action('volver_menu', async (ctx) => { await ctx.answerCbQuery(); await ctx.deleteMessage(); return irAlMenuPrincipal(ctx); });
-
-// Lanzamiento seguro para Render
-bot.launch().then(() => console.log('Bot Online'));
+// Lanzamiento seguro
+bot.launch().then(() => console.log('Bot Online con Minería Persistente'));
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
