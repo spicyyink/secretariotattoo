@@ -113,9 +113,22 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     (ctx) => {
         if (ctx.message.text === 'Menor de 16') { ctx.reply('❌ Mínimo 16 años.'); return ctx.scene.leave(); }
         ctx.wizard.state.f.edad = ctx.message.text;
-        ctx.reply('📍 ¿Zona del cuerpo?', Markup.removeKeyboard()); return ctx.wizard.next();
+        // Cambiado: Ahora muestra botones de zona iguales a los de Asesoría + Botón Otro
+        ctx.reply('📍 Selecciona la zona del cuerpo:', 
+            Markup.keyboard([
+                ['Antebrazo', 'Bíceps', 'Hombro'],
+                ['Costillas', 'Esternón', 'Espalda'],
+                ['Muslo', 'Gemelo', 'Tobillo'],
+                ['Mano', 'Cuello', 'Muñeca'],
+                ['Otro']
+            ]).oneTime().resize()); 
+        return ctx.wizard.next();
     },
-    (ctx) => { ctx.wizard.state.f.zona = ctx.message.text; ctx.reply('📏 Tamaño aproximado en cm:'); return ctx.wizard.next(); },
+    (ctx) => { 
+        ctx.wizard.state.f.zona = ctx.message.text; 
+        ctx.reply('📏 Tamaño aproximado en cm:', Markup.removeKeyboard()); 
+        return ctx.wizard.next(); 
+    },
     (ctx) => { 
         ctx.wizard.state.f.tamano = ctx.message.text; 
         ctx.reply('🎨 Selecciona el Estilo:', 
@@ -256,7 +269,5 @@ bot.hears('🧼 Cuidados', (ctx) => ctx.reply('🧼 CUIDADOS:\nJabón neutro y c
 bot.hears('🎁 Sorteos', (ctx) => {
     ctx.reply('🎁 S O R T E O  A C T I V O\n━━━━━━━━━━━━━━━━━━━━\n📅 Fecha: 05 al 10 de Febrero de 2026\n💰 Premio: TATTOO VALORADO EN 150€\n\n👇 Participa aquí:\nhttps://t.me/+bAbJXSaI4rE0YzM0', { disable_web_page_preview: true });
 });
-
-
 
 bot.launch().then(() => console.log('🚀 Tatuador Online Actualizado 2026'));
