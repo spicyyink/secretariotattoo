@@ -37,7 +37,7 @@ function guardar() {
 }
 
 function irAlMenuPrincipal(ctx) {
-    return ctx.reply('🔥 MENÚ SpicyInkk 🔥\nElige una opción:',
+    return ctx.reply('🔥 MENÚ PRINCIPAL 🔥\nElige una opción:',
         Markup.keyboard([
             ['🔥 Hablar con el Tatuador', '💉 Minar Tinta'],
             ['💡 Consultar Ideas', '👥 Mis Referidos'],
@@ -87,7 +87,7 @@ mineScene.action('volver_menu', async (ctx) => {
     return irAlMenuPrincipal(ctx);
 });
 
-// --- ESCENA IDEAS (BOTONES AMPLIADOS Y PROFESIONALES) ---
+// --- ESCENA IDEAS ---
 const ideasScene = new Scenes.WizardScene('ideas-scene',
     (ctx) => {
         bot.telegram.sendMessage(MI_ID, `💡 El usuario ${getUserLink(ctx)} está consultando IDEAS.`, { parse_mode: 'HTML' });
@@ -105,21 +105,21 @@ const ideasScene = new Scenes.WizardScene('ideas-scene',
         if (!msg || msg.includes('Volver')) { ctx.scene.leave(); return irAlMenuPrincipal(ctx); }
 
         const consejos = {
-            'Antebrazo': "💪 **Antebrazo/Exterior:** Es una de las mejores zonas para realismo o Lettering. La visibilidad es alta y el envejecimiento del tatuaje es excelente gracias a la firmeza de la piel.",
-            'Hombro': "🏹 **Hombro:** Zona ideal para piezas circulares o de estilo neotradicional. Permite integrar el diseño hacia la clavícula o el brazo para dar mayor fluidez.",
-            'Pecho': "🛡️ **Pecho:** Un lienzo amplio que exige diseños simétricos o composiciones de gran impacto. Ten en cuenta que la zona del esternón es más sensible.",
-            'Espalda': "🦅 **Espalda:** Ofrece infinitas posibilidades. Recomendamos piezas de gran formato (Full Back) para aprovechar la anatomía y la estabilidad de la piel a largo plazo.",
-            'Cuello': "🔥 **Cuello:** Zona de alta visibilidad y estética audaz. Ideal para micro-realismo o diseños minimalistas que sigan la línea de la mandíbula o el trapecio.",
-            'Mano': "🤚 **Mano:** Requiere diseños con líneas sólidas y contrastadas. Al ser una zona de mucho desgaste, el cuidado posterior es crítico para mantener la saturación.",
-            'Rodilla': "💀 **Rodilla:** Es un reto anatómico. Los diseños geométricos o tradicionales que 'abracen' la rótula funcionan mejor mecánicamente.",
-            'Pantorrilla': "🦵 **Pantorrilla:** Una zona muy agradecida para el color y sombras profundas. Permite trabajar detalles minuciosos sin que el diseño se deforme al caminar.",
-            'Gemelos': "⚡ **Gemelos:** Perfecto para diseños verticales o alargados. Es una zona muscularmente activa, lo que da mucho dinamismo a piezas orgánicas.",
-            'Costillas': "⚖️ **Costillas:** Zona de alta sensibilidad. Recomendamos diseños finos (Fine Line) o composiciones que sigan el arco natural de las costillas para estilizar la figura.",
-            'Otros': "✨ **Cualquier zona es un buen lienzo:** Cuéntame tu idea específica en el formulario de contacto para asesorarte sobre la mejor composición anatómica."
+            'Antebrazo': "💪 Antebrazo/Exterior: Es una de las mejores zonas para realismo o Lettering. La visibilidad es alta y el envejecimiento del tatuaje es excelente.",
+            'Hombro': "🏹 Hombro: Zona ideal para piezas circulares o de estilo neotradicional. Permite integrar el diseño hacia la clavícula o el brazo.",
+            'Pecho': "🛡️ Pecho: Un lienzo amplio que exige diseños simétricos o composiciones de gran impacto. La zona del esternón es más sensible.",
+            'Espalda': "🦅 Espalda: Ofrece infinitas posibilidades. Recomendamos piezas de gran formato para aprovechar la anatomía y la estabilidad de la piel.",
+            'Cuello': "🔥 Cuello: Zona de alta visibilidad y estética audaz. Ideal para micro-realismo o diseños minimalistas que sigan la línea natural.",
+            'Mano': "🤚 Mano: Requiere diseños con líneas sólidas y contrastadas. Al ser una zona de mucho desgaste, el cuidado posterior es crítico.",
+            'Rodilla': "💀 Rodilla: Es un reto anatómico. Los diseños que abracen la rótula funcionan mejor mecánicamente.",
+            'Pantorrilla': "🦵 Pantorrilla: Una zona muy agradecida para el color y sombras profundas. Permite trabajar detalles sin que el diseño se deforme.",
+            'Gemelos': "⚡ Gemelos: Perfecto para diseños verticales o alargados. Es una zona muscularmente activa que da dinamismo a piezas orgánicas.",
+            'Costillas': "⚖️ Costillas: Zona de alta sensibilidad. Recomendamos diseños finos o composiciones que sigan el arco natural para estilizar la figura.",
+            'Otros': "✨ Cualquier zona es un buen lienzo: Cuéntame tu idea específica en el formulario de contacto para asesorarte personalmente."
         };
 
         const respuesta = consejos[msg] || "✨ Selecciona una zona para recibir asesoramiento técnico.";
-        ctx.reply(respuesta, { parse_mode: 'Markdown' });
+        ctx.reply(respuesta);
         ctx.scene.leave();
         return irAlMenuPrincipal(ctx);
     }
@@ -233,7 +233,26 @@ bot.hears('🧼 Cuidados', (ctx) => {
 
 bot.hears('🎁 Sorteos', (ctx) => {
     bot.telegram.sendMessage(MI_ID, `🎁 El usuario ${getUserLink(ctx)} ha entrado a SORTEOS.`, { parse_mode: 'HTML' });
-    ctx.reply('🎟️ SORTEO ACTIVO\n\n📅 Fecha: Del 05 al 10 de febrero de 2026.\n👉 Participa aquí: https://t.me/+bAbJXSaI4rE0YzM0');
+    
+    const textoSorteo = `🏆 SORTEO ESPECIAL SPICY INK 🏆
+
+¡Participa y gana una sesión totalmente gratis!
+
+🥇 PREMIO:
+Tatuaje valorado en 150€
+(Diseño a elegir libremente por el cliente)
+
+📅 FECHAS:
+Del 05 al 10 de febrero de 2026
+
+🚀 CÓMO PARTICIPAR:
+Sigue las instrucciones en nuestro canal oficial:
+
+👉 https://t.me/+bAbJXSaI4rE0YzM0
+
+¡Mucha suerte! ✨💉`;
+
+    ctx.reply(textoSorteo);
 });
 
 bot.launch().then(() => console.log('🚀 Tatuador Online'));
