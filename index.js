@@ -13,7 +13,7 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000);
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
-const MI_ID = process.env.MI_ID;
+const MI_ID = process.env.MI_ID; // Tu ID de Telegram para las validaciones
 
 // ==========================================
 // 2. BASE DE DATOS LOCAL
@@ -79,8 +79,6 @@ mineScene.action('volver_menu', async (ctx) => {
     return irAlMenuPrincipal(ctx);
 });
 
-mineScene.on('message', (ctx) => ctx.reply('⚠️ Pulsa "⬅️ SALIR AL MENÚ" para usar otras opciones.'));
-
 // --- ESCENA IDEAS ---
 const ideasScene = new Scenes.WizardScene('ideas-scene',
     (ctx) => {
@@ -127,21 +125,17 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
 );
 
 // ==========================================
-// 4. LÓGICA DE REINICIO (/START) - ¡ORDEN CRÍTICO!
+// 4. LÓGICA DE REINICIO (/START)
 // ==========================================
 const stage = new Scenes.Stage([tattooScene, mineScene, ideasScene]);
 bot.use(session());
 
-// ESTO DEBE IR ANTES DEL MIDDLEWARE DE ESCENAS PARA PODER "ROBAR" EL CONTROL
 bot.start(async (ctx) => {
-    if (ctx.scene) {
-        try { await ctx.scene.leave(); } catch(e) {}
-    }
+    if (ctx.scene) { try { await ctx.scene.leave(); } catch(e) {} }
     ctx.session = {}; 
-    
     const payload = ctx.startPayload;
     if (payload && payload !== String(ctx.from.id) && !db.invitados[ctx.from.id]) {
-        db.invitados[ctx.from.id] = parseInt(payload);
+        db.invitados[ctx.from.id] = parseInt(payload); // Guardamos quién invitó a este usuario
         db.referidos[payload] = (db.referidos[payload] || 0) + 1;
         guardar();
     }
@@ -151,7 +145,56 @@ bot.start(async (ctx) => {
 bot.use(stage.middleware());
 
 // ==========================================
-// 5. LISTENERS GLOBALES
+// 5. SISTEMA DE VALIDACIÓN DE TATUAJES (ADMIN)
+// ==========================================
+
+// El amigo pulsa el botón de "Me he tatuado"
+bot.action('reportar_tatuaje', async (ctx) => {
+    const uid = ctx.from.id;
+    const sponsorId = db.invitados[uid];
+
+    if (!sponsorId) {
+        return ctx.answerCbQuery('⚠️ No entraste con un link de referido, no puedes reportar.', { show_alert: true });
+    }
+
+    await ctx.answerCbQuery('⏳ Reporte enviado al Admin...');
+    await ctx.reply('✅ Tu solicitud ha sido enviada. El tatuador la validará pronto.');
+
+    // Notificar al Admin
+    await ctx.telegram.sendMessage(MI_ID, `🔔 **VALIDACIÓN PENDIENTE**\n\nEl usuario **${ctx.from.first_name}** (${uid}) dice que se ha tatuado.\n\nFue invitado por: \`${sponsorId}\`\n\n¿Aceptar este referido para el premio?`, 
+        Markup.inlineKeyboard([
+            [Markup.button.callback('✅ ACEPTAR', `v_si_${uid}_${sponsorId}`)],
+            [Markup.button.callback('❌ RECHAZAR', `v_no_${uid}`)]
+        ])
+    );
+});
+
+// Lógica de los botones de Aceptar/Rechazar que recibe el Admin
+bot.action(/^v_si_(\d+)_(\d+)$/, async (ctx) => {
+    const amigoId = ctx.match[1];
+    const sponsorId = ctx.match[2];
+
+    // Sumar 1 al contador de confirmados del patrocinador
+    db.confirmados[sponsorId] = (db.confirmados[sponsorId] || 0) + 1;
+    guardar();
+
+    await ctx.editMessageText(`✅ Has validado a ${amigoId}. Se le ha sumado 1 punto a ${sponsorId}.`);
+    
+    // Avisar al amigo
+    try { await ctx.telegram.sendMessage(amigoId, '🎉 ¡Tu tatuaje ha sido validado! Gracias por tatuarte en Spicy Inkk.'); } catch (e) {}
+    
+    // Avisar al patrocinador
+    try { await ctx.telegram.sendMessage(sponsorId, `🔥 ¡Un amig@ invitado por ti se ha tatuado! Tienes ${db.confirmados[sponsorId]}/3 confirmados.`); } catch (e) {}
+});
+
+bot.action(/^v_no_(\d+)$/, async (ctx) => {
+    const amigoId = ctx.match[1];
+    await ctx.editMessageText(`❌ Has rechazado la validación de ${amigoId}.`);
+    try { await ctx.telegram.sendMessage(amigoId, '⚠️ Tu validación de tatuaje ha sido rechazada por el administrador.'); } catch (e) {}
+});
+
+// ==========================================
+// 6. LISTENERS GLOBALES
 // ==========================================
 bot.hears('🔥 Hablar con SpicyBot', (ctx) => ctx.scene.enter('tattoo-wizard'));
 bot.hears('💉 Minar Tinta', (ctx) => ctx.scene.enter('mine-scene'));
@@ -160,7 +203,13 @@ bot.hears('💡 Consultar Ideas', (ctx) => ctx.scene.enter('ideas-scene'));
 bot.hears('👥 Mis Referidos', (ctx) => {
     const uid = ctx.from.id;
     const total = db.referidos[uid] || 0;
-    ctx.reply(`👥 ZONA SOCIOS\n🔗 Link: https://t.me/SpicyInkBot?start=${uid}\n📊 Clics: ${total}\n🎁 Premio: 50% DTO al llegar a 3.`);
+    const confirmados = db.confirmados[uid] || 0;
+    
+    ctx.reply(`👥 **ZONA SOCIOS**\n\n🔗 **Tu Link:** https://t.me/SpicyInkBot?start=${uid}\n\n📊 **Estadísticas:**\n- Clics en link: ${total}\n- Amig@ Tatuado: ${confirmados}/3\n\n🎁 **Premio:** 50% DTO al llegar a 3 confirmados.\n\n👇 **¿Eres un amig@ invitado y ya te has tatuado?**`,
+        Markup.inlineKeyboard([
+            [Markup.button.callback('✅ ¡ME HE TATUADO!', 'reportar_tatuaje')]
+        ])
+    );
 });
 
 bot.hears('🧼 Cuidados', (ctx) => {
@@ -168,9 +217,9 @@ bot.hears('🧼 Cuidados', (ctx) => {
 });
 
 bot.hears('🎁 Sorteos', (ctx) => {
-    ctx.reply('🎟️ SORTEO ACTIVO en Instagram: @SpicyInkk');
+    ctx.reply('🎟️ **SORTEO ACTIVO**\n\n📅 **Fecha:** Del 05 al 10 de febrero de 2026.\n👉 **Participa aquí:** https://t.me/+bAbJXSaI4rE0YzM0');
 });
 
-bot.launch().then(() => console.log('🚀 SpicyBot Blindado'));
+bot.launch().then(() => console.log('🚀 SpicyBot Blindado con Sistema de Validación'));
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
