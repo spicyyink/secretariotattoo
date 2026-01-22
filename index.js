@@ -1,3 +1,6 @@
+Para implementar esta funcionalidad, he creado una nueva Escena de IA (ia-scene) que se encarga de hacer las preguntas necesarias para construir un prompt detallado.
+Al final, el bot genera un enlace directo a Google Gemini con el prompt ya escrito para que el usuario solo tenga que pegarlo y generar su imagen.
+Aquí tienes el código completo y corregido:
 require('dotenv').config();
 const { Telegraf, Scenes, session, Markup } = require('telegraf');
 const http = require('http');
@@ -31,7 +34,6 @@ if (fs.existsSync(DATA_FILE)) {
     try { 
         const contenido = fs.readFileSync(DATA_FILE, 'utf-8');
         db = JSON.parse(contenido);
-        // Aseguramos que existan todas las propiedades necesarias
         if (!db.fichas) db.fichas = {};
     } catch (e) { console.log("Error al cargar DB, usando valores por defecto."); }
 }
@@ -173,8 +175,6 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     async (ctx) => {
         const d = ctx.wizard.state.f;
         d.telefono = ctx.message.text.replace(/\s+/g, '');
-        
-        // Guardamos en la base de datos la ficha vinculada al ID del usuario
         db.fichas[ctx.from.id] = d;
         guardar();
 
@@ -183,6 +183,47 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
         const fichaAdmin = `🖋️ CITA\n👤 ${d.nombre}\n📍 ${d.zona}\n📏 ${d.tamano}\n🎨 ${d.estilo}\n💰 Estimado: ${estimacion.split('\n')[0]}\n📞 WA: ${d.telefono}`;
         await ctx.telegram.sendMessage(MI_ID, fichaAdmin, Markup.inlineKeyboard([[Markup.button.url('📲 CONTACTAR', `https://wa.me/${d.telefono}`)]]));
         if (d.foto) await ctx.telegram.sendPhoto(MI_ID, d.foto);
+        return ctx.scene.leave();
+    }
+);
+
+// --- NUEVA ESCENA DE IA PERSONALIZADA ---
+const iaScene = new Scenes.WizardScene('ia-wizard',
+    (ctx) => {
+        ctx.reply('🤖 **DISEÑADOR VIRTUAL**\n━━━━━━━━━━━━━━━━━━━━\n¿Qué elemento principal quieres en tu tatuaje? (Ej: Un lobo, una rosa, una brújula...)');
+        ctx.wizard.state.ai = {};
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.elemento = ctx.message.text;
+        ctx.reply('🌗 ¿Lo quieres en Blanco y Negro o a Color?', 
+            Markup.keyboard([['Blanco y Negro', 'Color']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.color = ctx.message.text;
+        ctx.reply('✨ Describe un detalle especial (Ej: Que tenga flores, efecto humo, estilo roto...):');
+        return ctx.wizard.next();
+    },
+    async (ctx) => {
+        const ai = ctx.wizard.state.ai;
+        ai.detalle = ctx.message.text;
+        const f = db.fichas[ctx.from.id];
+
+        // Construcción del Prompt
+        const prompt = `Tattoo design of ${ai.elemento} with ${ai.detalle}, ${ai.color}, high contrast, professional tattoo flash style, white background, detailed linework, optimized for ${f.zona} area.`;
+        
+        // Codificar para URL
+        const encodedPrompt = encodeURIComponent(prompt);
+        const geminiUrl = `https://gemini.google.com/app?q=Genera%20una%20imagen%20de%20tatuaje%20con%20este%20prompt%20en%20inglés:%20${encodedPrompt}`;
+
+        await ctx.reply(`🧠 **PROMPT GENERADO**\n━━━━━━━━━━━━━━━━━━━━\nHe diseñado el comando perfecto para que la IA de Google cree tu imagen:\n\n<code>${prompt}</code>\n\n👇 **PULSA EL BOTÓN PARA GENERAR LA IMAGEN**`, {
+            parse_mode: 'HTML',
+            ...Markup.inlineKeyboard([
+                [Markup.button.url('🎨 GENERAR EN GOOGLE GEMINI', geminiUrl)],
+                [Markup.button.callback('🔄 Crear otra idea', 'nueva_ia')]
+            ])
+        });
         return ctx.scene.leave();
     }
 );
@@ -202,7 +243,6 @@ const ideasScene = new Scenes.WizardScene('ideas-scene',
     (ctx) => {
         const msg = ctx.message.text;
         if (msg.includes('Volver')) { ctx.scene.leave(); return irAlMenuPrincipal(ctx); }
-        
         const consejos = {
             'Antebrazo': "💪 Zona ideal para primer tatuaje. Envejece muy bien y luce genial con Lettering.",
             'Costillas': "⚖️ Zona elegante pero de sensibilidad alta. Se recomiendan diseños de línea fina.",
@@ -217,7 +257,6 @@ const ideasScene = new Scenes.WizardScene('ideas-scene',
             'Tobillo': "⚓ Zona discreta y fina. Cuidado con el roce del calzado al curar.",
             'Hombro': "🔱 Clásico que mantiene muy bien la forma con los años."
         };
-
         ctx.reply(consejos[msg] || "✨ Selecciona una zona del menú.");
         ctx.scene.leave(); 
         return irAlMenuPrincipal(ctx);
@@ -227,7 +266,7 @@ const ideasScene = new Scenes.WizardScene('ideas-scene',
 // ==========================================
 // 6. LÓGICA DE REFERIDOS Y START
 // ==========================================
-const stage = new Scenes.Stage([tattooScene, mineScene, ideasScene]);
+const stage = new Scenes.Stage([tattooScene, mineScene, ideasScene, iaScene]);
 bot.use(session());
 bot.use(stage.middleware());
 
@@ -272,9 +311,7 @@ bot.action(/^v_si_(\d+)_(\d+)$/, async (ctx) => {
 // 7. LISTENERS GLOBALES E IA
 // ==========================================
 
-// --- LÓGICA DE IA CON PREGUNTA DE FICHA ---
 bot.hears('🤖 IA: ¿Qué me tatuo?', (ctx) => {
-    // Si el usuario NO tiene una ficha guardada, lanzamos el bloqueo con botones
     if (!db.fichas[ctx.from.id]) {
         return ctx.reply('🤖 **BLOQUEO DE IA**\n━━━━━━━━━━━━━━━━━━━━\nPara generar ideas personalizadas necesito conocer tu estilo y zona preferida.\n\n¿Has enviado ya tu ficha de presupuesto?',
             Markup.inlineKeyboard([
@@ -283,18 +320,12 @@ bot.hears('🤖 IA: ¿Qué me tatuo?', (ctx) => {
             ])
         );
     }
+    return ctx.scene.enter('ia-wizard');
+});
 
-    // Si ya existe la ficha, generamos la idea basada en sus datos
-    const f = db.fichas[ctx.from.id];
-    const ideasSugestivas = [
-        `Un diseño Fine Line de una fase lunar con detalles geométricos en tu ${f.zona}.`,
-        `Una composición de estilo ${f.estilo} que fluya con la musculatura de tu ${f.zona}.`,
-        `Un concepto minimalista con sombras suaves optimizado para tu ${f.zona}.`,
-        `Una pieza de Lettering caligráfico que envuelva parte de tu ${f.zona}.`
-    ];
-    const ideaElegida = ideasSugestivas[Math.floor(Math.random() * ideasSugestivas.length)];
-    
-    ctx.reply(`🧠 **SPICY AI ANALIZANDO...**\n━━━━━━━━━━━━━━━━━━━━\nDetectado: Estilo ${f.estilo} en la zona ${f.zona}.\n\n✨ **Sugerencia:** ${ideaElegida}`);
+bot.action('nueva_ia', (ctx) => {
+    ctx.answerCbQuery();
+    return ctx.scene.enter('ia-wizard');
 });
 
 bot.action('ir_a_formulario', (ctx) => {
@@ -316,3 +347,4 @@ bot.hears('🎁 Sorteos', (ctx) => {
 });
 
 bot.launch().then(() => console.log('🚀 Tatuador Online Actualizado 2026'));
+
