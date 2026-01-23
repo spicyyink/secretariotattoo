@@ -1,4 +1,4 @@
-mrequire('dotenv').config();
+require('dotenv').config();
 const { Telegraf, Scenes, session, Markup } = require('telegraf');
 const http = require('http');
 const fs = require('fs');
