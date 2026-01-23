@@ -1,5 +1,3 @@
-Para cumplir con tu solicitud de una traducción profunda del prompt sin alterar la estructura lógica ni el resto del código original, he actualizado únicamente la sección de utilidades de traducción y la línea de generación del prompt final.
-Ahora, el bot aplicará la función traducirTerminos a cada una de las variables que el usuario introduce (elemento, acción, fondo, etc.), permitiendo que aunque el usuario escriba en español, la IA reciba los términos técnicos correctos en inglés.
 require('dotenv').config();
 const { Telegraf, Scenes, session, Markup } = require('telegraf');
 const http = require('http');
@@ -39,19 +37,19 @@ function guardar() {
 }
 
 // ==========================================
-// 3. UTILIDADES DE TRADUCCIÓN PROFUNDA (ACTUALIZADO)
+// 3. UTILIDADES DE TRADUCCIÓN PROFUNDA PARA IA
 // ==========================================
 function traducirTerminos(texto) {
     if (!texto) return "";
     const diccionario = {
-        // Colores y Estilos
+        // Estilos y colores
         'blanco y negro': 'black and gray',
         'color': 'full color',
         'realismo': 'photorealistic',
         'fine line': 'ultra fine line',
         'blackwork': 'heavy blackwork',
         'lettering': 'custom calligraphy',
-        // Zonas
+        // Anatomía
         'antebrazo': 'forearm',
         'bíceps': 'biceps',
         'hombro': 'shoulder',
@@ -64,22 +62,38 @@ function traducirTerminos(texto) {
         'mano': 'hand',
         'cuello': 'neck',
         'muñeca': 'wrist',
-        // Conceptos descriptivos para el prompt profundo
+        // Elementos y descriptores comunes
         'lobo': 'wolf',
+        'calavera': 'skull',
         'aullando': 'howling',
+        'saltando': 'leaping',
         'bosque': 'deep forest',
-        'luz dramática': 'dramatic lighting',
-        'luz dramatica': 'dramatic lighting',
-        'hiperrealista': 'hyper-realistic',
-        'fuego': 'fire and flames',
-        'sin líneas': 'no outlines',
-        'sin lineas': 'no outlines',
-        'sombras': 'heavy shadows',
-        'oscuridad': 'darkness',
-        'fuerza': 'power',
-        'vertical alargado': 'elongated vertical',
-        'circular': 'circular',
-        'diamante': 'diamond shape'
+        'nubes': 'clouds',
+        'mandalas': 'mandala patterns',
+        'fondo limpio': 'clean solid background',
+        'luz dramática': 'dramatic high-contrast lighting',
+        'luz dramatica': 'dramatic high-contrast lighting',
+        'sombras suaves': 'soft smooth shading',
+        'alto contraste': 'high contrast',
+        'hiperrealista': 'hyper-realistic 8k detail',
+        'minimalista': 'minimalist clean',
+        'muy sombreado': 'heavy shading',
+        'rosas': 'roses',
+        'dagas': 'daggers',
+        'fuego': 'flames',
+        'línea fina': 'fine-line work',
+        'linea fina': 'fine-line work',
+        'línea gruesa': 'bold traditional lines',
+        'linea gruesa': 'bold traditional lines',
+        'sin líneas': 'no-outline 3D style',
+        'sin lineas': 'no-outline 3D style',
+        'vertical': 'vertical elongated',
+        'circular': 'circular composition',
+        'diamante': 'diamond-shaped frame',
+        'oscuridad': 'dark moody atmosphere',
+        'paz': 'serene and peaceful',
+        'fuerza': 'powerful and aggressive',
+        'elegancia': 'elegant and sophisticated'
     };
     let traducido = texto.toLowerCase();
     for (const [es, en] of Object.entries(diccionario)) {
@@ -236,7 +250,7 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     }
 );
 
-// --- ESCENA DE IA (PROMPT TRADUCIDO) ---
+// --- ESCENA DE IA (PROMPT CON TRADUCCIÓN PROFUNDA) ---
 const iaScene = new Scenes.WizardScene('ia-wizard',
     (ctx) => {
         ctx.wizard.state.ai = {};
@@ -294,7 +308,7 @@ const iaScene = new Scenes.WizardScene('ia-wizard',
         
         const f = db.fichas[ctx.from.id] || { zona: "body", estilo: "artistic" };
 
-        // TRADUCCIÓN PROFUNDA APLICADA AQUÍ
+        // Aplicamos la traducción a cada variable individualmente para el prompt final
         const prompt = `Professional tattoo flash design of ${traducirTerminos(ai.elemento)}, ${traducirTerminos(ai.accion)}. Background: ${traducirTerminos(ai.fondo)}. Lighting: ${traducirTerminos(ai.luz)}. Detail: ${traducirTerminos(ai.detalle)}. Palette: ${traducirTerminos(ai.color)}. Elements: ${traducirTerminos(ai.extra)}. Linework: ${traducirTerminos(ai.lineas)}. Composition: ${traducirTerminos(ai.forma)}. Mood: ${traducirTerminos(ai.sentimiento)}. Optimized for ${traducirTerminos(f.zona)} in ${traducirTerminos(f.estilo)} style. 8k, high contrast, clean white background, master quality.`;
         
         const encodedPrompt = encodeURIComponent(`Genera una imagen de tatuaje con este prompt en inglés: ${prompt}`);
@@ -358,5 +372,3 @@ bot.hears('🧼 Cuidados', (ctx) => ctx.reply('Jabón neutro y crema 3 veces al 
 bot.hears('🎁 Sorteos', (ctx) => ctx.reply('🎁 SORTEO ACTIVO: https://t.me/+bAbJXSaI4rE0YzM0'));
 
 bot.launch().then(() => console.log('🚀 Bot Funcionando'));
-
-¿Te gustaría que añadiera más términos específicos de diseño (como "estilo nórdico", "minimalista", etc.) al diccionario de traducción?
