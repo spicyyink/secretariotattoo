@@ -314,72 +314,85 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     }
 );
 
+// --- ESCENA DE IA ACTUALIZADA CON BOTÓN SALTAR ---
 const iaScene = new Scenes.WizardScene('ia-wizard',
     (ctx) => {
         ctx.wizard.state.ai = {};
-        ctx.reply('🤖 **GENERADOR PROFESIONAL (1/10)**\n¿Cuál es el elemento principal? (Ej: Un lobo, una calavera...)');
+        ctx.reply('🤖 **GENERADOR PROFESIONAL (1/10)**\n¿Cuál es el elemento principal? (Ej: Un lobo, una calavera...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
-        ctx.wizard.state.ai.elemento = ctx.message.text;
-        ctx.reply('**(2/10)** ¿Qué está haciendo o en qué postura está? (Ej: Aullando, saltando, posición frontal...)');
+        ctx.wizard.state.ai.elemento = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(2/10)** ¿Qué está haciendo o en qué postura está? (Ej: Aullando, saltando...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
-        ctx.wizard.state.ai.accion = ctx.message.text;
-        ctx.reply('**(3/10)** ¿Qué hay de fondo? (Ej: Bosque, nubes, mandalas, fondo limpio...)');
+        ctx.wizard.state.ai.accion = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(3/10)** ¿Qué hay de fondo? (Ej: Bosque, nubes, mandalas...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
-        ctx.wizard.state.ai.fondo = ctx.message.text;
-        ctx.reply('**(4/10)** ¿Cómo es la iluminación? (Ej: Luz dramática, sombras suaves, alto contraste...)');
+        ctx.wizard.state.ai.fondo = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(4/10)** ¿Cómo es la iluminación? (Ej: Luz dramática, sombras suaves...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
-        ctx.wizard.state.ai.luz = ctx.message.text;
-        ctx.reply('**(5/10)** ¿Nivel de detalle? (Ej: Hiperrealista, minimalista, muy sombreado...)');
+        ctx.wizard.state.ai.luz = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(5/10)** ¿Nivel de detalle? (Ej: Hiperrealista, minimalista...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
-        ctx.wizard.state.ai.detalle = ctx.message.text;
-        ctx.reply('**(6/10)** ¿Gama de colores?', Markup.keyboard([['Blanco y Negro', 'Color']]).oneTime().resize());
+        ctx.wizard.state.ai.detalle = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(6/10)** ¿Gama de colores?', 
+            Markup.keyboard([['Blanco y Negro', 'Color'], ['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
-        ctx.wizard.state.ai.color = ctx.message.text;
-        ctx.reply('**(7/10)** ¿Algún elemento extra? (Ej: Rosas alrededor, dagas, fuego...)');
+        ctx.wizard.state.ai.color = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(7/10)** ¿Algún elemento extra? (Ej: Rosas, dagas, fuego...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
-        ctx.wizard.state.ai.extra = ctx.message.text;
-        ctx.reply('**(8/10)** ¿Tipo de línea? (Ej: Línea fina, línea gruesa tradicional, sin líneas...)');
+        ctx.wizard.state.ai.extra = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(8/10)** ¿Tipo de línea? (Ej: Línea fina, línea gruesa...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
-        ctx.wizard.state.ai.lineas = ctx.message.text;
-        ctx.reply('**(9/10)** ¿Composición/Forma? (Ej: Vertical alargado, circular, forma de diamante...)');
+        ctx.wizard.state.ai.lineas = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(9/10)** ¿Composición/Forma? (Ej: Vertical, circular...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
-        ctx.wizard.state.ai.forma = ctx.message.text;
-        ctx.reply('**(10/10)** ¿Qué sensación debe transmitir? (Ej: Oscuridad, paz, fuerza, elegancia...)');
+        ctx.wizard.state.ai.forma = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(10/10)** ¿Qué sensación debe transmitir? (Ej: Oscuridad, paz...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
     async (ctx) => {
         const ai = ctx.wizard.state.ai;
-        ai.sentimiento = ctx.message.text;
+        ai.sentimiento = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
         
         const f = db.fichas[ctx.from.id] || { zona: "body", estilo: "artistic" };
 
-        const prompt = `Professional tattoo flash design of ${traducirTerminos(ai.elemento)}, ${traducirTerminos(ai.accion)}. Background: ${traducirTerminos(ai.fondo)}. Lighting: ${traducirTerminos(ai.luz)}. Detail: ${traducirTerminos(ai.detalle)}. Palette: ${traducirTerminos(ai.color)}. Elements: ${traducirTerminos(ai.extra)}. Linework: ${traducirTerminos(ai.lineas)}. Composition: ${traducirTerminos(ai.forma)}. Mood: ${traducirTerminos(ai.sentimiento)}. Optimized for ${traducirTerminos(f.zona)} in ${traducirTerminos(f.estilo)} style. 8k, high contrast, clean white background, master quality.`;
+        // Limpieza de prompt: si es 'none', no se añade para no ensuciar la IA
+        const p = (val) => (val === 'none' ? '' : traducirTerminos(val));
+
+        const prompt = `Professional tattoo flash design of ${p(ai.elemento)}, ${p(ai.accion)}. Background: ${p(ai.fondo)}. Lighting: ${p(ai.luz)}. Detail: ${p(ai.detalle)}. Palette: ${p(ai.color)}. Elements: ${p(ai.extra)}. Linework: ${p(ai.lineas)}. Composition: ${p(ai.forma)}. Mood: ${p(ai.sentimiento)}. Optimized for ${traducirTerminos(f.zona)} in ${traducirTerminos(f.estilo)} style. 8k, high contrast, clean white background, master quality.`;
         
         const encodedPrompt = encodeURIComponent(`Genera una imagen de tatuaje con este prompt en inglés: ${prompt}`);
         const geminiUrl = `https://gemini.google.com/app?q=${encodedPrompt}`;
 
-        const msgExtra = `\n\n💬 Copia y pega el comando anterior dentro de este enlace, que es la IA que usa el tatuador por el procesamiento **NanoBananaIA**. También puedes copiar y pegar en una IA que sea de tu gusto y genere imagen. La mía es gratuita y puedes generar hasta 50 imágenes al día.`;
-
-        await ctx.reply(`🧠 **PROMPT PROFESIONAL GENERADO**\n━━━━━━━━━━━━━━━━━━━━\n<code>${prompt}</code>${msgExtra}`, {
+        await ctx.reply(`🧠 **PROMPT PROFESIONAL GENERADO**\n━━━━━━━━━━━━━━━━━━━━\n<code>${prompt}</code>`, {
             parse_mode: 'HTML',
+            ...Markup.removeKeyboard(), // Quitamos el teclado de saltar al finalizar
             ...Markup.inlineKeyboard([
                 [Markup.button.url('🎨 GENERAR EN GOOGLE GEMINI', geminiUrl)],
                 [Markup.button.callback('🔄 Otra idea', 'nueva_ia')]
@@ -388,6 +401,7 @@ const iaScene = new Scenes.WizardScene('ia-wizard',
         return ctx.scene.leave();
     }
 );
+
 
 const ideasScene = new Scenes.WizardScene('ideas-scene',
     (ctx) => {
