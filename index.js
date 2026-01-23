@@ -1,4 +1,3 @@
-forzar reset ( /start)
 require('dotenv').config();
 const { Telegraf, Scenes, session, Markup } = require('telegraf');
 const http = require('http');
@@ -12,7 +11,12 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Tatuador Online ✅');
 });
-server.listen(process.env.PORT || 3000);
+
+// Corrección para Render: Escuchar en 0.0.0.0 y puerto asignado
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Servidor HTTP activo en puerto ${PORT}`);
+});
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const MI_ID = process.env.MI_ID; 
@@ -43,7 +47,6 @@ function guardar() {
 function traducirTerminos(texto) {
     if (!texto) return "";
     const diccionario = {
-        // Estilos y colores
         'blanco y negro': 'black and gray',
         'color': 'full color',
         'realismo': 'photorealistic',
@@ -54,8 +57,6 @@ function traducirTerminos(texto) {
         'neotradicional': 'neo-traditional',
         'acuarela': 'watercolor style',
         'puntillismo': 'dotwork style',
-        
-        // Anatomía
         'antebrazo': 'forearm',
         'bíceps': 'biceps',
         'biceps': 'biceps',
@@ -76,8 +77,6 @@ function traducirTerminos(texto) {
         'columna': 'spine',
         'codo': 'elbow',
         'axila': 'armpit',
-
-        // Animales y Elementos Principales
         'lobo': 'wolf',
         'león': 'lion',
         'leon': 'lion',
@@ -97,8 +96,6 @@ function traducirTerminos(texto) {
         'carpa koi': 'koi fish',
         'samurái': 'samurai',
         'samurai': 'samurai',
-
-        // Acciones y Posturas
         'aullando': 'howling',
         'saltando': 'leaping',
         'rugiendo': 'roaring',
@@ -109,8 +106,6 @@ function traducirTerminos(texto) {
         'posición de alerta': 'alert stance',
         'agazapado': 'crouching',
         'ataque': 'attacking pose',
-
-        // Fondos y Paisajes
         'bosque': 'deep forest',
         'sabana': 'savannah',
         'selva': 'jungle',
@@ -122,8 +117,6 @@ function traducirTerminos(texto) {
         'espacio': 'outer space stars',
         'geometría': 'geometric patterns',
         'cielo despejado': 'clear sky',
-
-        // Iluminación y Detalle
         'luz dramática': 'dramatic high-contrast lighting',
         'luz dramatica': 'dramatic high-contrast lighting',
         'sombras suaves': 'soft_smooth shading',
@@ -132,8 +125,6 @@ function traducirTerminos(texto) {
         'minimalista': 'clean minimalist',
         'muy sombreado': 'heavy atmospheric shading',
         'microrealismo': 'micro-realism',
-
-        // Elementos Extra
         'rosas': 'blooming roses',
         'flores': 'flowers',
         'dagas': 'sharp daggers',
@@ -145,8 +136,6 @@ function traducirTerminos(texto) {
         'corona': 'crown',
         'alas': 'angel wings',
         'nada': 'none',
-
-        // Líneas y Composición
         'línea fina': 'fine-line work',
         'linea fina': 'fine-line work',
         'línea gruesa': 'bold traditional lines',
@@ -159,8 +148,6 @@ function traducirTerminos(texto) {
         'diamante': 'diamond-shaped frame',
         'al gusto': 'custom artistic composition',
         'natural': 'natural flow',
-
-        // Sensaciones / Mood
         'oscuridad': 'dark moody gothic atmosphere',
         'paz': 'serene and peaceful vibe',
         'fuerza': 'powerful and aggressive energy',
@@ -199,7 +186,7 @@ function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
     else if (estiloLow.includes("lettering")) pluses.push("Detalle de Caligrafía (Lettering)");
 
     const zonasCriticas = ['costillas', 'cuello', 'mano', 'rodilla', 'esternon', 'cara', 'pies', 'columna', 'codo', 'tobillo', 'axila'];
-    if (zonasCriticas.some(z => zonaLow.includes(z))) pluses.push("Dificultad de Zona Anatomómica");
+    if (zonasCriticas.some(z => zonaLow.includes(z))) pluses.push("Dificultad de Zona Anatómica");
 
     if (tieneFoto) pluses.push("Carga de detalle analizada en referencia 🖼️");
     else pluses.push("Sin referencia visual (Sujeto a cambios)");
@@ -230,7 +217,6 @@ function irAlMenuPrincipal(ctx) {
 // 6. ESCENAS
 // ==========================================
 
-// --- ESCENA MINADO ---
 const mineScene = new Scenes.BaseScene('mine-scene');
 mineScene.enter((ctx) => {
     const uid = ctx.from.id;
@@ -251,7 +237,6 @@ mineScene.action('minar_punto', async (ctx) => {
 });
 mineScene.action('volver_menu', async (ctx) => { await ctx.scene.leave(); return irAlMenuPrincipal(ctx); });
 
-// --- ESCENA FORMULARIO DE CITA ---
 const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     (ctx) => { ctx.reply('⚠️ FORMULARIO DE CITA\n━━━━━━━━━━━━━━━━━━━━\nEscribe tu Nombre Completo:'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('🔞 ¿Edad?', Markup.keyboard([['+18 años', '+16 años'], ['Menor de 16']]).oneTime().resize()); return ctx.wizard.next(); },
@@ -327,7 +312,6 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     }
 );
 
-// --- ESCENA DE IA (PROMPT CON TRADUCCIÓN PROFUNDA) ---
 const iaScene = new Scenes.WizardScene('ia-wizard',
     (ctx) => {
         ctx.wizard.state.ai = {};
@@ -450,4 +434,3 @@ bot.hears('🎁 Sorteos', (ctx) => ctx.reply('🎁 **SORTEO ACTIVO**\n━━━�
 
 
 bot.launch().then(() => console.log('🚀 Bot Funcionando'));
-
