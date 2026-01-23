@@ -1,3 +1,4 @@
+forzar reset ( /start)
 require('dotenv').config();
 const { Telegraf, Scenes, session, Markup } = require('telegraf');
 const http = require('http');
@@ -198,7 +199,7 @@ function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
     else if (estiloLow.includes("lettering")) pluses.push("Detalle de Caligrafía (Lettering)");
 
     const zonasCriticas = ['costillas', 'cuello', 'mano', 'rodilla', 'esternon', 'cara', 'pies', 'columna', 'codo', 'tobillo', 'axila'];
-    if (zonasCriticas.some(z => zonaLow.includes(z))) pluses.push("Dificultad de Zona Anatómica");
+    if (zonasCriticas.some(z => zonaLow.includes(z))) pluses.push("Dificultad de Zona Anatomómica");
 
     if (tieneFoto) pluses.push("Carga de detalle analizada en referencia 🖼️");
     else pluses.push("Sin referencia visual (Sujeto a cambios)");
@@ -449,3 +450,4 @@ bot.hears('🎁 Sorteos', (ctx) => ctx.reply('🎁 **SORTEO ACTIVO**\n━━━�
 
 
 bot.launch().then(() => console.log('🚀 Bot Funcionando'));
+
