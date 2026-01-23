@@ -40,6 +40,7 @@ function guardar() {
 // 3. UTILIDADES DE TRADUCCIÓN PARA IA
 // ==========================================
 function traducirTerminos(texto) {
+    if (!texto) return "";
     const diccionario = {
         'blanco y negro': 'black and gray',
         'color': 'full color',
@@ -54,7 +55,11 @@ function traducirTerminos(texto) {
         'tobillo': 'ankle',
         'mano': 'hand',
         'cuello': 'neck',
-        'muñeca': 'wrist'
+        'muñeca': 'wrist',
+        'realismo': 'photorealistic',
+        'fine line': 'ultra fine line',
+        'blackwork': 'heavy blackwork',
+        'lettering': 'custom calligraphy'
     };
     let traducido = texto.toLowerCase();
     for (const [es, en] of Object.entries(diccionario)) {
@@ -199,8 +204,7 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
         guardar();
         const estimacion = calcularPresupuesto(d.tamano, d.zona, d.estilo, d.tieneFoto);
         
-        // --- ENVÍO DE FICHA AL ADMINISTRADOR ---
-        const fichaAdmin = `🔔 **NUEVA SOLICITUD DE CITA**\n━━━━━━━━━━━━━━━━━━━━\n👤 **Nombre:** ${d.nombre}\n🔞 **Edad:** ${d.edad}\n📍 **Zona:** ${d.zona}\n📏 **Tamaño:** ${d.tamano}\n🎨 **Estilo:** ${d.estilo}\n🏥 **Salud/Alergias:** ${d.salud}\n📞 **WhatsApp:** +${d.telefono}\n\n💰 **${estimacion.split('\n')[0]}**`;
+        const fichaAdmin = `🔔 **NUEVA SOLICITUD**\n━━━━━━━━━━━━━━━━━━━━\n👤 **Nombre:** ${d.nombre}\n🔞 **Edad:** ${d.edad}\n📍 **Zona:** ${d.zona}\n📏 **Tamaño:** ${d.tamano}\n🎨 **Estilo:** ${d.estilo}\n🏥 **Salud:** ${d.salud}\n📞 **WhatsApp:** +${d.telefono}\n\n💰 **${estimacion.split('\n')[0]}**`;
         
         await ctx.telegram.sendMessage(MI_ID, fichaAdmin, Markup.inlineKeyboard([
             [Markup.button.url('📲 Hablar por WhatsApp', `https://wa.me/${d.telefono}`)]
@@ -212,43 +216,72 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     }
 );
 
-// --- ESCENA DE IA ---
+// --- ESCENA DE IA (11 PASOS) ---
 const iaScene = new Scenes.WizardScene('ia-wizard',
     (ctx) => {
-        ctx.reply('🤖 **DISEÑADOR VIRTUAL**\n━━━━━━━━━━━━━━━━━━━━\n¿Qué elemento principal quieres en tu tatuaje? (Ej: Un lobo, una rosa, una brújula...)');
         ctx.wizard.state.ai = {};
+        ctx.reply('🤖 **GENERADOR PROFESIONAL (1/10)**\n¿Cuál es el elemento principal? (Ej: Un lobo, una calavera...)');
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.elemento = ctx.message.text;
-        ctx.reply('🌗 ¿Lo quieres en Blanco y Negro o a Color?', 
-            Markup.keyboard([['Blanco y Negro', 'Color']]).oneTime().resize());
+        ctx.reply('**(2/10)** ¿Qué está haciendo o en qué postura está? (Ej: Aullando, saltando, posición frontal...)');
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.accion = ctx.message.text;
+        ctx.reply('**(3/10)** ¿Qué hay de fondo? (Ej: Bosque, nubes, mandalas, fondo limpio...)');
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.fondo = ctx.message.text;
+        ctx.reply('**(4/10)** ¿Cómo es la iluminación? (Ej: Luz dramática, sombras suaves, alto contraste...)');
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.luz = ctx.message.text;
+        ctx.reply('**(5/10)** ¿Nivel de detalle? (Ej: Hiperrealista, minimalista, muy sombreado...)');
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.detalle = ctx.message.text;
+        ctx.reply('**(6/10)** ¿Gama de colores?', Markup.keyboard([['Blanco y Negro', 'Color']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.color = ctx.message.text;
-        ctx.reply('✨ Describe un detalle especial (Ej: Que tenga flores, efecto humo, estilo roto...):');
+        ctx.reply('**(7/10)** ¿Algún elemento extra? (Ej: Rosas alrededor, dagas, fuego...)');
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.extra = ctx.message.text;
+        ctx.reply('**(8/10)** ¿Tipo de línea? (Ej: Línea fina, línea gruesa tradicional, sin líneas...)');
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.lineas = ctx.message.text;
+        ctx.reply('**(9/10)** ¿Composición/Forma? (Ej: Vertical alargado, circular, forma de diamante...)');
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.forma = ctx.message.text;
+        ctx.reply('**(10/10)** ¿Qué sensación debe transmitir? (Ej: Oscuridad, paz, fuerza, elegancia...)');
         return ctx.wizard.next();
     },
     async (ctx) => {
         const ai = ctx.wizard.state.ai;
-        ai.detalle = ctx.message.text;
+        ai.sentimiento = ctx.message.text;
         
         const f = db.fichas[ctx.from.id] || { zona: "body", estilo: "artistic" };
 
-        // Traducción de los campos para el prompt
-        const elementoEN = ai.elemento; // El elemento suele ser simple, lo dejamos igual o podrías añadir más lógica
-        const colorEN = traducirTerminos(ai.color);
-        const zonaEN = traducirTerminos(f.zona);
-        const estiloEN = traducirTerminos(f.estilo);
-        const detalleEN = ai.detalle;
-
-        const prompt = `Tattoo design of ${elementoEN} with ${detalleEN}, ${colorEN}, high contrast, professional tattoo flash style, white background, detailed linework, optimized for ${zonaEN} area, in ${estiloEN} style.`;
+        const prompt = `Professional tattoo flash design of ${ai.elemento}, ${ai.accion}. Background: ${ai.fondo}. Lighting: ${ai.luz}. Detail: ${ai.detalle}. Palette: ${traducirTerminos(ai.color)}. Elements: ${ai.extra}. Linework: ${ai.lineas}. Composition: ${ai.forma}. Mood: ${ai.sentimiento}. Optimized for ${traducirTerminos(f.zona)} in ${traducirTerminos(f.estilo)} style. 8k, high contrast, clean white background, master quality.`;
         
         const encodedPrompt = encodeURIComponent(`Genera una imagen de tatuaje con este prompt en inglés: ${prompt}`);
         const geminiUrl = `https://gemini.google.com/app?q=${encodedPrompt}`;
 
-        await ctx.reply(`🧠 **DISEÑO IA GENERADO**\n━━━━━━━━━━━━━━━━━━━━\nHe traducido y optimizado tu idea para Gemini:\n\n<code>${prompt}</code>\n\n👇 **PULSA ABAJO PARA GENERAR LA IMAGEN**`, {
+        const msgExtra = `\n\n💬 Copia y pega el comando anterior dentro de este enlace, que es la IA que usa el tatuador por el procesamiento **NanoBananaIA**. También puedes copiar y pegar en una IA que sea de tu gusto y genere imagen. La mía es gratuita y puedes generar hasta 50 imágenes al día.`;
+
+        await ctx.reply(`🧠 **PROMPT PROFESIONAL GENERADO**\n━━━━━━━━━━━━━━━━━━━━\n<code>${prompt}</code>${msgExtra}`, {
             parse_mode: 'HTML',
             ...Markup.inlineKeyboard([
                 [Markup.button.url('🎨 GENERAR EN GOOGLE GEMINI', geminiUrl)],
@@ -273,7 +306,7 @@ const ideasScene = new Scenes.WizardScene('ideas-scene',
 );
 
 // ==========================================
-// 7. REGISTRO Y LANZAMIENTO
+// 7. MIDDLEWARES Y REGISTRO
 // ==========================================
 const stage = new Scenes.Stage([tattooScene, mineScene, ideasScene, iaScene]);
 bot.use(session());
