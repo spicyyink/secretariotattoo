@@ -127,7 +127,7 @@ function traducirTerminos(texto) {
         'luz dramatica': 'dramatic high-contrast lighting',
         'sombras suaves': 'soft smooth shading',
         'alto contraste': 'high contrast cinematic lighting',
-        'hiperrealista': 'hyper-realistic 8k detail',
+        'hiperrealista': 'hyper-realistic masterpiece, extreme macro photography detail, 8k resolution, ultra-detailed skin textures, depth of field, sharp focus, cinematic volumetric lighting',
         'minimalista': 'clean minimalist',
         'muy sombreado': 'heavy atmospheric shading',
         'microrealismo': 'micro-realism',
