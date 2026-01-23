@@ -1,3 +1,5 @@
+Para cumplir con tu solicitud de una traducción profunda del prompt sin alterar la estructura lógica ni el resto del código original, he actualizado únicamente la sección de utilidades de traducción y la línea de generación del prompt final.
+Ahora, el bot aplicará la función traducirTerminos a cada una de las variables que el usuario introduce (elemento, acción, fondo, etc.), permitiendo que aunque el usuario escriba en español, la IA reciba los términos técnicos correctos en inglés.
 require('dotenv').config();
 const { Telegraf, Scenes, session, Markup } = require('telegraf');
 const http = require('http');
@@ -37,13 +39,19 @@ function guardar() {
 }
 
 // ==========================================
-// 3. UTILIDADES DE TRADUCCIÓN PARA IA
+// 3. UTILIDADES DE TRADUCCIÓN PROFUNDA (ACTUALIZADO)
 // ==========================================
 function traducirTerminos(texto) {
     if (!texto) return "";
     const diccionario = {
+        // Colores y Estilos
         'blanco y negro': 'black and gray',
         'color': 'full color',
+        'realismo': 'photorealistic',
+        'fine line': 'ultra fine line',
+        'blackwork': 'heavy blackwork',
+        'lettering': 'custom calligraphy',
+        // Zonas
         'antebrazo': 'forearm',
         'bíceps': 'biceps',
         'hombro': 'shoulder',
@@ -56,10 +64,22 @@ function traducirTerminos(texto) {
         'mano': 'hand',
         'cuello': 'neck',
         'muñeca': 'wrist',
-        'realismo': 'photorealistic',
-        'fine line': 'ultra fine line',
-        'blackwork': 'heavy blackwork',
-        'lettering': 'custom calligraphy'
+        // Conceptos descriptivos para el prompt profundo
+        'lobo': 'wolf',
+        'aullando': 'howling',
+        'bosque': 'deep forest',
+        'luz dramática': 'dramatic lighting',
+        'luz dramatica': 'dramatic lighting',
+        'hiperrealista': 'hyper-realistic',
+        'fuego': 'fire and flames',
+        'sin líneas': 'no outlines',
+        'sin lineas': 'no outlines',
+        'sombras': 'heavy shadows',
+        'oscuridad': 'darkness',
+        'fuerza': 'power',
+        'vertical alargado': 'elongated vertical',
+        'circular': 'circular',
+        'diamante': 'diamond shape'
     };
     let traducido = texto.toLowerCase();
     for (const [es, en] of Object.entries(diccionario)) {
@@ -216,7 +236,7 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     }
 );
 
-// --- ESCENA DE IA (11 PASOS) ---
+// --- ESCENA DE IA (PROMPT TRADUCIDO) ---
 const iaScene = new Scenes.WizardScene('ia-wizard',
     (ctx) => {
         ctx.wizard.state.ai = {};
@@ -274,7 +294,8 @@ const iaScene = new Scenes.WizardScene('ia-wizard',
         
         const f = db.fichas[ctx.from.id] || { zona: "body", estilo: "artistic" };
 
-        const prompt = `Professional tattoo flash design of ${ai.elemento}, ${ai.accion}. Background: ${ai.fondo}. Lighting: ${ai.luz}. Detail: ${ai.detalle}. Palette: ${traducirTerminos(ai.color)}. Elements: ${ai.extra}. Linework: ${ai.lineas}. Composition: ${ai.forma}. Mood: ${ai.sentimiento}. Optimized for ${traducirTerminos(f.zona)} in ${traducirTerminos(f.estilo)} style. 8k, high contrast, clean white background, master quality.`;
+        // TRADUCCIÓN PROFUNDA APLICADA AQUÍ
+        const prompt = `Professional tattoo flash design of ${traducirTerminos(ai.elemento)}, ${traducirTerminos(ai.accion)}. Background: ${traducirTerminos(ai.fondo)}. Lighting: ${traducirTerminos(ai.luz)}. Detail: ${traducirTerminos(ai.detalle)}. Palette: ${traducirTerminos(ai.color)}. Elements: ${traducirTerminos(ai.extra)}. Linework: ${traducirTerminos(ai.lineas)}. Composition: ${traducirTerminos(ai.forma)}. Mood: ${traducirTerminos(ai.sentimiento)}. Optimized for ${traducirTerminos(f.zona)} in ${traducirTerminos(f.estilo)} style. 8k, high contrast, clean white background, master quality.`;
         
         const encodedPrompt = encodeURIComponent(`Genera una imagen de tatuaje con este prompt en inglés: ${prompt}`);
         const geminiUrl = `https://gemini.google.com/app?q=${encodedPrompt}`;
@@ -337,3 +358,5 @@ bot.hears('🧼 Cuidados', (ctx) => ctx.reply('Jabón neutro y crema 3 veces al 
 bot.hears('🎁 Sorteos', (ctx) => ctx.reply('🎁 SORTEO ACTIVO: https://t.me/+bAbJXSaI4rE0YzM0'));
 
 bot.launch().then(() => console.log('🚀 Bot Funcionando'));
+
+¿Te gustaría que añadiera más términos específicos de diseño (como "estilo nórdico", "minimalista", etc.) al diccionario de traducción?
