@@ -21,7 +21,7 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 const MI_ID = process.env.MI_ID; 
 
 // ==========================================
-// 2. BASE DE DATOS LOCAL (CON NUEVAS TABLAS)
+// 2. BASE DE DATOS LOCAL
 // ==========================================
 let db = { 
     clics: {}, referidos: {}, confirmados: {}, invitados: {}, 
@@ -156,9 +156,10 @@ function irAlMenuPrincipal(ctx) {
 }
 
 // ==========================================
-// 6. ESCENAS (NUEVAS ESCENAS ADMIN AÑADIDAS)
+// 6. ESCENAS
 // ==========================================
 
+// --- NUEVA ESCENA: GENERADOR DE CUPONES (ADMIN) ---
 const couponScene = new Scenes.WizardScene('coupon-wizard',
     (ctx) => { ctx.reply('🎟️ **GENERADOR DE CUPONES**\nEscribe el código del cupón (ej: PROMO20):'); return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.code = ctx.message.text.toUpperCase(); ctx.reply('¿Cuántos puntos otorga este cupón?'); return ctx.wizard.next(); },
@@ -426,7 +427,7 @@ bot.hears('🏷️ Promociones', (ctx) => {
         Markup.inlineKeyboard([[Markup.button.url('📲 Entrar al Grupo', 'https://t.me/+rnjk7xiUjFhlMzdk')]]));
 });
 
-// --- LÓGICA DE AFILIADOS (PUNTOS) ---
+// --- LÓGICA DE AFILIADOS (PUNTOS Y CANJE) ---
 bot.hears('💎 Club de Afiliados', (ctx) => {
     const uid = ctx.from.id;
     const pts = db.puntos[uid] || 0;
@@ -436,22 +437,28 @@ bot.hears('💎 Club de Afiliados', (ctx) => {
 
 bot.action('canjear_cupon_usuario', (ctx) => {
     ctx.answerCbQuery();
-    return ctx.reply('Escribe el código de tu cupón:');
+    return ctx.reply('🎟️ **MODO CANJE**\n\nEscribe el código de tu cupón a continuación para recibir tus puntos:');
 });
 
+// --- DETECCIÓN INTELIGENTE DE TEXTO (CUPONES) ---
 bot.on('text', (ctx, next) => {
     const code = ctx.message.text.toUpperCase();
+    // Si el texto coincide con un código de cupón activo
     if (db.cupones && db.cupones[code]) {
         const val = db.cupones[code];
         db.puntos[ctx.from.id] = (db.puntos[ctx.from.id] || 0) + val;
+        
+        // Borramos el cupón para que no se use dos veces
         delete db.cupones[code]; 
         guardar();
-        return ctx.reply(`🎉 ¡Cupón aceptado! Has recibido ${val} puntos.`);
+        
+        return ctx.reply(`🎉 ¡Cupón aceptado!\n━━━━━━━━━━━━━━━━━━━━\nHas recibido **${val} puntos** en tu cuenta VIP.`);
     }
+    // Si no es un cupón, continúa con el flujo normal
     return next();
 });
 
-// --- COMANDO PARA QUE EL TATUADOR ASIGNE PUNTOS ---
+// --- COMANDO PARA QUE EL TATUADOR ASIGNE PUNTOS DIRECTOS ---
 bot.command('canjear', (ctx) => {
     if (ctx.from.id.toString() !== MI_ID.toString()) return;
     const args = ctx.message.text.split(' ');
@@ -548,4 +555,3 @@ bot.hears('🧼 Cuidados', (ctx) => ctx.reply('Jabón neutro y crema 3 veces al 
 bot.hears('🎁 Sorteos', (ctx) => ctx.reply('🎁 **SORTEO ACTIVO (05-10 Febrero 2026)**\n━━━━━━━━━━━━━━━━━━━━\n💰 **PREMIO:** 150€\n🎨 **DISEÑO:** A elegir por el cliente\n\n🔗 **ENLACE:** https://t.me/+bAbJXSaI4rE0YzM0', { parse_mode: 'Markdown' }));
 
 bot.launch().then(() => console.log('🚀 Bot Funcionando'));
-
