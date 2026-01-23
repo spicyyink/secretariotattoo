@@ -2,6 +2,7 @@ require('dotenv').config();
 const { Telegraf, Scenes, session, Markup } = require('telegraf');
 const http = require('http');
 const fs = require('fs');
+const path = require('path');
 
 // ==========================================
 // 1. CONFIGURACIÓN DEL SERVIDOR
@@ -15,32 +16,60 @@ server.listen(process.env.PORT || 3000);
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const MI_ID = process.env.MI_ID; 
 
-const getUserLink = (ctx) => {
-    const user = ctx.from;
-    if (user.username) return `@${user.username}`;
-    return `<a href="tg://user?id=${user.id}">${user.first_name}</a>`;
-};
-
 // ==========================================
-// 2. BASE DE DATOS LOCAL
+// 2. BASE DE DATOS LOCAL (PARA RENDER)
 // ==========================================
 let db = { clics: {}, referidos: {}, confirmados: {}, invitados: {}, fichas: {} };
-const DATA_FILE = './database.json';
+const DATA_FILE = path.join('/tmp', 'database.json');
 
 if (fs.existsSync(DATA_FILE)) {
     try { 
         const contenido = fs.readFileSync(DATA_FILE, 'utf-8');
         db = JSON.parse(contenido);
         if (!db.fichas) db.fichas = {};
-    } catch (e) { console.log("Error al cargar DB, usando valores por defecto."); }
+    } catch (e) { console.log("Error al cargar DB"); }
 }
 
 function guardar() {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
+    try {
+        fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
+    } catch (e) { console.log("Error al guardar"); }
 }
 
 // ==========================================
-// 3. LÓGICA DE PRESUPUESTO DINÁMICA
+// 3. UTILIDADES DE TRADUCCIÓN PARA IA
+// ==========================================
+function traducirTerminos(texto) {
+    if (!texto) return "";
+    const diccionario = {
+        'blanco y negro': 'black and gray',
+        'color': 'full color',
+        'antebrazo': 'forearm',
+        'bíceps': 'biceps',
+        'hombro': 'shoulder',
+        'costillas': 'ribs',
+        'esternón': 'sternum',
+        'espalda': 'back',
+        'muslo': 'thigh',
+        'gemelo': 'calf',
+        'tobillo': 'ankle',
+        'mano': 'hand',
+        'cuello': 'neck',
+        'muñeca': 'wrist',
+        'realismo': 'photorealistic',
+        'fine line': 'ultra fine line',
+        'blackwork': 'heavy blackwork',
+        'lettering': 'custom calligraphy'
+    };
+    let traducido = texto.toLowerCase();
+    for (const [es, en] of Object.entries(diccionario)) {
+        traducido = traducido.replace(new RegExp(es, 'g'), en);
+    }
+    return traducido;
+}
+
+// ==========================================
+// 4. LÓGICA DE PRESUPUESTO DINÁMICA
 // ==========================================
 function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
     const cms = parseInt(tamanoStr.replace(/\D/g, '')) || 0;
@@ -65,9 +94,7 @@ function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
     else pluses.push("Sin referencia visual (Sujeto a cambios)");
 
     let base = `Estimado base: ${estimado}`;
-    if (pluses.length > 0) {
-        base += `\n⚠️ FACTORES DE AJUSTE:\n└ ${pluses.join("\n└ ")}`;
-    }
+    if (pluses.length > 0) base += `\n⚠️ FACTORES DE AJUSTE:\n└ ${pluses.join("\n└ ")}`;
     
     base += `\n\n📢 **AVISO:** Este presupuesto ha sido generado automáticamente por un robot con fines puramente orientativos. El precio real y definitivo será estipulado únicamente por el tatuador tras revisar personalmente el diseño final.`;
     
@@ -75,7 +102,7 @@ function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
 }
 
 // ==========================================
-// 4. MENÚ PRINCIPAL
+// 5. MENÚ PRINCIPAL
 // ==========================================
 function irAlMenuPrincipal(ctx) {
     return ctx.reply('✨ S P I C Y  I N K ✨\n━━━━━━━━━━━━━━━━━━━━\nGestión de citas y eventos exclusivos.\n\nSelecciona una opción:',
@@ -89,9 +116,10 @@ function irAlMenuPrincipal(ctx) {
 }
 
 // ==========================================
-// 5. ESCENAS
+// 6. ESCENAS
 // ==========================================
 
+// --- ESCENA MINADO ---
 const mineScene = new Scenes.BaseScene('mine-scene');
 mineScene.enter((ctx) => {
     const uid = ctx.from.id;
@@ -112,6 +140,7 @@ mineScene.action('minar_punto', async (ctx) => {
 });
 mineScene.action('volver_menu', async (ctx) => { await ctx.scene.leave(); return irAlMenuPrincipal(ctx); });
 
+// --- ESCENA FORMULARIO DE CITA ---
 const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     (ctx) => { ctx.reply('⚠️ FORMULARIO DE CITA\n━━━━━━━━━━━━━━━━━━━━\nEscribe tu Nombre Completo:'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('🔞 ¿Edad?', Markup.keyboard([['+18 años', '+16 años'], ['Menor de 16']]).oneTime().resize()); return ctx.wizard.next(); },
@@ -162,63 +191,101 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
         if (ctx.message && ctx.message.photo) {
             ctx.wizard.state.f.foto = ctx.message.photo[ctx.message.photo.length - 1].file_id;
             ctx.wizard.state.f.tieneFoto = true;
-            await ctx.reply('🔍 Analizando composición...');
         } else if (ctx.callbackQuery && ctx.callbackQuery.data === 'no_foto') {
             ctx.wizard.state.f.tieneFoto = false;
             ctx.answerCbQuery();
         } else return ctx.reply('⚠️ Envía una foto o pulsa el botón.');
-        ctx.reply('📲 WhatsApp:'); return ctx.wizard.next();
+        ctx.reply('📲 WhatsApp (con prefijo, ej: 34600000000):'); return ctx.wizard.next();
     },
     async (ctx) => {
         const d = ctx.wizard.state.f;
-        d.telefono = ctx.message.text.replace(/\s+/g, '');
+        d.telefono = ctx.message.text.replace(/\s+/g, '').replace('+', '');
         db.fichas[ctx.from.id] = d;
         guardar();
-
         const estimacion = calcularPresupuesto(d.tamano, d.zona, d.estilo, d.tieneFoto);
+        
+        const fichaAdmin = `🔔 **NUEVA SOLICITUD**\n━━━━━━━━━━━━━━━━━━━━\n👤 **Nombre:** ${d.nombre}\n🔞 **Edad:** ${d.edad}\n📍 **Zona:** ${d.zona}\n📏 **Tamaño:** ${d.tamano}\n🎨 **Estilo:** ${d.estilo}\n🏥 **Salud:** ${d.salud}\n📞 **WhatsApp:** +${d.telefono}\n\n💰 **${estimacion.split('\n')[0]}**`;
+        
+        await ctx.telegram.sendMessage(MI_ID, fichaAdmin, Markup.inlineKeyboard([
+            [Markup.button.url('📲 Hablar por WhatsApp', `https://wa.me/${d.telefono}`)]
+        ]));
+        if (d.foto) await ctx.telegram.sendPhoto(MI_ID, d.foto, { caption: `🖼️ Referencia de ${d.nombre}` });
+
         await ctx.reply(`✅ SOLICITUD ENVIADA\n━━━━━━━━━━━━━━━━━━━━\n${estimacion}`);
-        const fichaAdmin = `🖋️ CITA\n👤 ${d.nombre}\n📍 ${d.zona}\n📏 ${d.tamano}\n🎨 ${d.estilo}\n💰 Estimado: ${estimacion.split('\n')[0]}\n📞 WA: ${d.telefono}`;
-        await ctx.telegram.sendMessage(MI_ID, fichaAdmin, Markup.inlineKeyboard([[Markup.button.url('📲 CONTACTAR', `https://wa.me/${d.telefono}`)]]));
-        if (d.foto) await ctx.telegram.sendPhoto(MI_ID, d.foto);
         return ctx.scene.leave();
     }
 );
 
-// --- NUEVA ESCENA DE IA PERSONALIZADA ---
+// --- ESCENA DE IA (11 PASOS) ---
 const iaScene = new Scenes.WizardScene('ia-wizard',
     (ctx) => {
-        ctx.reply('🤖 **DISEÑADOR VIRTUAL**\n━━━━━━━━━━━━━━━━━━━━\n¿Qué elemento principal quieres en tu tatuaje? (Ej: Un lobo, una rosa, una brújula...)');
         ctx.wizard.state.ai = {};
+        ctx.reply('🤖 **GENERADOR PROFESIONAL (1/10)**\n¿Cuál es el elemento principal? (Ej: Un lobo, una calavera...)');
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.elemento = ctx.message.text;
-        ctx.reply('🌗 ¿Lo quieres en Blanco y Negro o a Color?', 
-            Markup.keyboard([['Blanco y Negro', 'Color']]).oneTime().resize());
+        ctx.reply('**(2/10)** ¿Qué está haciendo o en qué postura está? (Ej: Aullando, saltando, posición frontal...)');
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.accion = ctx.message.text;
+        ctx.reply('**(3/10)** ¿Qué hay de fondo? (Ej: Bosque, nubes, mandalas, fondo limpio...)');
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.fondo = ctx.message.text;
+        ctx.reply('**(4/10)** ¿Cómo es la iluminación? (Ej: Luz dramática, sombras suaves, alto contraste...)');
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.luz = ctx.message.text;
+        ctx.reply('**(5/10)** ¿Nivel de detalle? (Ej: Hiperrealista, minimalista, muy sombreado...)');
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.detalle = ctx.message.text;
+        ctx.reply('**(6/10)** ¿Gama de colores?', Markup.keyboard([['Blanco y Negro', 'Color']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.color = ctx.message.text;
-        ctx.reply('✨ Describe un detalle especial (Ej: Que tenga flores, efecto humo, estilo roto...):');
+        ctx.reply('**(7/10)** ¿Algún elemento extra? (Ej: Rosas alrededor, dagas, fuego...)');
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.extra = ctx.message.text;
+        ctx.reply('**(8/10)** ¿Tipo de línea? (Ej: Línea fina, línea gruesa tradicional, sin líneas...)');
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.lineas = ctx.message.text;
+        ctx.reply('**(9/10)** ¿Composición/Forma? (Ej: Vertical alargado, circular, forma de diamante...)');
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.forma = ctx.message.text;
+        ctx.reply('**(10/10)** ¿Qué sensación debe transmitir? (Ej: Oscuridad, paz, fuerza, elegancia...)');
         return ctx.wizard.next();
     },
     async (ctx) => {
         const ai = ctx.wizard.state.ai;
-        ai.detalle = ctx.message.text;
-        const f = db.fichas[ctx.from.id];
-
-        // Construcción del Prompt
-        const prompt = `Tattoo design of ${ai.elemento} with ${ai.detalle}, ${ai.color}, high contrast, professional tattoo flash style, white background, detailed linework, optimized for ${f.zona} area.`;
+        ai.sentimiento = ctx.message.text;
         
-        // Codificar para URL
-        const encodedPrompt = encodeURIComponent(prompt);
-        const geminiUrl = `https://gemini.google.com/app?q=Genera%20una%20imagen%20de%20tatuaje%20con%20este%20prompt%20en%20inglés:%20${encodedPrompt}`;
+        const f = db.fichas[ctx.from.id] || { zona: "body", estilo: "artistic" };
 
-        await ctx.reply(`🧠 **PROMPT GENERADO**\n━━━━━━━━━━━━━━━━━━━━\nHe diseñado el comando perfecto para que la IA de Google cree tu imagen:\n\n<code>${prompt}</code>\n\n👇 **PULSA EL BOTÓN PARA GENERAR LA IMAGEN**`, {
+        const prompt = `Professional tattoo flash design of ${ai.elemento}, ${ai.accion}. Background: ${ai.fondo}. Lighting: ${ai.luz}. Detail: ${ai.detalle}. Palette: ${traducirTerminos(ai.color)}. Elements: ${ai.extra}. Linework: ${ai.lineas}. Composition: ${ai.forma}. Mood: ${ai.sentimiento}. Optimized for ${traducirTerminos(f.zona)} in ${traducirTerminos(f.estilo)} style. 8k, high contrast, clean white background, master quality.`;
+        
+        const encodedPrompt = encodeURIComponent(`Genera una imagen de tatuaje con este prompt en inglés: ${prompt}`);
+        const geminiUrl = `https://gemini.google.com/app?q=${encodedPrompt}`;
+
+        const msgExtra = `\n\n💬 Copia y pega el comando anterior dentro de este enlace, que es la IA que usa el tatuador por el procesamiento **NanoBananaIA**. También puedes copiar y pegar en una IA que sea de tu gusto y genere imagen. La mía es gratuita y puedes generar hasta 50 imágenes al día.`;
+
+        await ctx.reply(`🧠 **PROMPT PROFESIONAL GENERADO**\n━━━━━━━━━━━━━━━━━━━━\n<code>${prompt}</code>${msgExtra}`, {
             parse_mode: 'HTML',
             ...Markup.inlineKeyboard([
                 [Markup.button.url('🎨 GENERAR EN GOOGLE GEMINI', geminiUrl)],
-                [Markup.button.callback('🔄 Crear otra idea', 'nueva_ia')]
+                [Markup.button.callback('🔄 Otra idea', 'nueva_ia')]
             ])
         });
         return ctx.scene.leave();
@@ -227,120 +294,46 @@ const iaScene = new Scenes.WizardScene('ia-wizard',
 
 const ideasScene = new Scenes.WizardScene('ideas-scene',
     (ctx) => {
-        ctx.reply('💡 A S E S O R Í A  D E  Z O N A S\n━━━━━━━━━━━━━━━━━━━━\nSelecciona una zona para ver consejos técnicos:', 
-            Markup.keyboard([
-                ['Antebrazo', 'Bíceps', 'Hombro'],
-                ['Costillas', 'Esternón', 'Espalda'],
-                ['Muslo', 'Gemelo', 'Tobillo'],
-                ['Mano', 'Cuello', 'Muñeca'],
-                ['⬅️ Volver al Menú']
-            ]).resize());
+        ctx.reply('💡 Selecciona una zona:', Markup.keyboard([['Antebrazo', 'Bíceps'], ['Costillas', 'Espalda'], ['⬅️ Volver']]).resize());
         return ctx.wizard.next();
     },
     (ctx) => {
         const msg = ctx.message.text;
         if (msg.includes('Volver')) { ctx.scene.leave(); return irAlMenuPrincipal(ctx); }
-        const consejos = {
-            'Antebrazo': "💪 Zona ideal para primer tatuaje. Envejece muy bien y luce genial con Lettering.",
-            'Costillas': "⚖️ Zona elegante pero de sensibilidad alta. Se recomiendan diseños de línea fina.",
-            'Cuello': "🔥 Estética potente. El diseño debe adaptarse al movimiento natural del cuerpo.",
-            'Mano': "🤚 Desgaste alto por regeneración de piel. Requiere líneas sólidas.",
-            'Bíceps': "🛡️ Mucho lienzo para realismo o piezas con gran volumen y sombras.",
-            'Espalda': "🦅 El lienzo más grande. Permite composiciones complejas y piezas XL.",
-            'Esternón': "💀 Sensibilidad alta. Los diseños simétricos lucen increíbles aquí.",
-            'Muslo': "🦵 Excelente para piezas grandes y uso de color.",
-            'Gemelo': "⚡ Muy agradecido para sombras y estilo tradicional.",
-            'Muñeca': "✨ Ideal para detalles minimalistas.",
-            'Tobillo': "⚓ Zona discreta y fina. Cuidado con el roce del calzado al curar.",
-            'Hombro': "🔱 Clásico que mantiene muy bien la forma con los años."
-        };
-        ctx.reply(consejos[msg] || "✨ Selecciona una zona del menú.");
-        ctx.scene.leave(); 
-        return irAlMenuPrincipal(ctx);
+        ctx.reply("💡 Consejo: " + msg + " es una zona excelente para este tipo de diseños.");
+        ctx.scene.leave(); return irAlMenuPrincipal(ctx);
     }
 );
 
 // ==========================================
-// 6. LÓGICA DE REFERIDOS Y START
+// 7. MIDDLEWARES Y REGISTRO
 // ==========================================
 const stage = new Scenes.Stage([tattooScene, mineScene, ideasScene, iaScene]);
 bot.use(session());
 bot.use(stage.middleware());
 
-bot.start(async (ctx) => {
-    const payload = ctx.startPayload;
-    if (payload && payload !== String(ctx.from.id) && !db.invitados[ctx.from.id]) {
-        db.invitados[ctx.from.id] = parseInt(payload);
-        db.referidos[payload] = (db.referidos[payload] || 0) + 1;
-        guardar();
-    }
-    return irAlMenuPrincipal(ctx);
-});
-
-bot.hears('👥 Mis Referidos', (ctx) => {
-    const uid = ctx.from.id;
-    const confirmados = db.confirmados[uid] || 0;
-    ctx.reply(`👥 S I S T E M A  D E  S O C I O S\n━━━━━━━━━━━━━━━━━━━━\n🔗 Tu enlace:\nhttps://t.me/SpicyInkBot?start=${uid}\n\n📊 Confirmados: ${confirmados} / 3\n\n<code>RECOMPENSAS EXCLUSIVAS:\nSi 3 personas se tatúan con tu enlace:\n✅ 100% DTO en Tattoos Pequeños\n✅ 100% DTO en Tattoos Medianos\n✅ 50% DTO en Tattoos Grandes</code>`, {
-        parse_mode: 'HTML',
-        ...Markup.inlineKeyboard([[Markup.button.callback('✅ ¡ME HE TATUADO!', 'reportar_tatuaje')]])
-    });
-});
-
-bot.action('reportar_tatuaje', async (ctx) => {
-    const sponsorId = db.invitados[ctx.from.id];
-    if (!sponsorId) return ctx.answerCbQuery('⚠️ No tienes sponsor registrado.');
-    await ctx.reply('✅ Reporte enviado para validación.');
-    await ctx.telegram.sendMessage(MI_ID, `🔔 VALIDACIÓN DE TATUAJE\nUsuario: ${getUserLink(ctx)}\nSponsor ID: ${sponsorId}`, {
-        parse_mode: 'HTML',
-        ...Markup.inlineKeyboard([[Markup.button.callback('✅ ACEPTAR Y SUMAR PUNTO', `v_si_${ctx.from.id}_${sponsorId}`)]])
-    });
-});
-
-bot.action(/^v_si_(\d+)_(\d+)$/, async (ctx) => {
-    const sid = ctx.match[2];
-    db.confirmados[sid] = (db.confirmados[sid] || 0) + 1;
-    guardar();
-    await ctx.editMessageText('✅ Validado. Punto sumado al sponsor.');
-    await ctx.telegram.sendMessage(sid, `🔥 ¡Enhorabuena! Un amigo se ha tatuado. Ya tienes (${db.confirmados[sid]}/3) confirmados.`);
-});
-
-// ==========================================
-// 7. LISTENERS GLOBALES E IA
-// ==========================================
+bot.start((ctx) => irAlMenuPrincipal(ctx));
 
 bot.hears('🤖 IA: ¿Qué me tatuo?', (ctx) => {
     if (!db.fichas[ctx.from.id]) {
-        return ctx.reply('🤖 **BLOQUEO DE IA**\n━━━━━━━━━━━━━━━━━━━━\nPara generar ideas personalizadas necesito conocer tu estilo y zona preferida.\n\n¿Has enviado ya tu ficha de presupuesto?',
+        return ctx.reply('🤖 **BLOQUEO DE IA**\nNecesito conocer tu estilo primero.\n\n¿Has enviado ya tu ficha?',
             Markup.inlineKeyboard([
-                [Markup.button.callback('✅ SÍ, enviarla ahora', 'ir_a_formulario')],
-                [Markup.button.callback('❌ NO, volver', 'volver_ia')]
+                [Markup.button.callback('✅ Sí, enviarla ahora', 'ir_a_formulario')],
+                [Markup.button.callback('❌ No, volver', 'volver_ia')]
             ])
         );
     }
     return ctx.scene.enter('ia-wizard');
 });
 
-bot.action('nueva_ia', (ctx) => {
-    ctx.answerCbQuery();
-    return ctx.scene.enter('ia-wizard');
-});
-
-bot.action('ir_a_formulario', (ctx) => {
-    ctx.answerCbQuery();
-    return ctx.scene.enter('tattoo-wizard');
-});
-
-bot.action('volver_ia', (ctx) => {
-    ctx.answerCbQuery();
-    return ctx.editMessageText('Entendido. Vuelve cuando quieras probar la IA.');
-});
+bot.action('nueva_ia', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('ia-wizard'); });
+bot.action('ir_a_formulario', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('tattoo-wizard'); });
+bot.action('volver_ia', (ctx) => { ctx.answerCbQuery(); return ctx.editMessageText('Vuelve cuando quieras.'); });
 
 bot.hears('🔥 Hablar con el Tatuador', (ctx) => ctx.scene.enter('tattoo-wizard'));
 bot.hears('💉 Minar Tinta', (ctx) => ctx.scene.enter('mine-scene'));
 bot.hears('💡 Consultar Ideas', (ctx) => ctx.scene.enter('ideas-scene'));
-bot.hears('🧼 Cuidados', (ctx) => ctx.reply('🧼 CUIDADOS:\nJabón neutro y crema 3 veces al día. No sol ni playa.'));
-bot.hears('🎁 Sorteos', (ctx) => {
-    ctx.reply('🎁 S O R T E O  A C T I V O\n━━━━━━━━━━━━━━━━━━━━\n📅 Fecha: 05 al 10 de Febrero de 2026\n💰 Premio: TATTOO VALORADO EN 150€\n\n👇 Participa aquí:\nhttps://t.me/+bAbJXSaI4rE0YzM0', { disable_web_page_preview: true });
-});
+bot.hears('🧼 Cuidados', (ctx) => ctx.reply('Jabón neutro y crema 3 veces al día.'));
+bot.hears('🎁 Sorteos', (ctx) => ctx.reply('🎁 SORTEO ACTIVO: https://t.me/+bAbJXSaI4rE0YzM0'));
 
-bot.launch().then(() => console.log('🚀 Tatuador Online Actualizado 2026'));
+bot.launch().then(() => console.log('🚀 Bot Funcionando'));
