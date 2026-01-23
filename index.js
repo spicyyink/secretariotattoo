@@ -125,7 +125,7 @@ function traducirTerminos(texto) {
         // Iluminación y Detalle
         'luz dramática': 'dramatic high-contrast lighting',
         'luz dramatica': 'dramatic high-contrast lighting',
-        'sombras suaves': 'soft smooth shading',
+        'sombras suaves': 'soft_smooth shading',
         'alto contraste': 'high contrast cinematic lighting',
         'hiperrealista': 'hyper-realistic masterpiece, extreme macro photography detail, 8k resolution, ultra-detailed skin textures, depth of field, sharp focus, cinematic volumetric lighting',
         'minimalista': 'clean minimalist',
@@ -171,14 +171,10 @@ function traducirTerminos(texto) {
     };
 
     let traducido = texto.toLowerCase().trim();
-    
-    // Iteramos por el diccionario para reemplazar coincidencias exactas y frases
     for (const [es, en] of Object.entries(diccionario)) {
-        // Usamos una expresión regular para detectar la palabra/frase completa
         const regex = new RegExp(`\\b${es}\\b`, 'g');
         traducido = traducido.replace(regex, en);
     }
-    
     return traducido;
 }
 
@@ -430,16 +426,17 @@ bot.start((ctx) => irAlMenuPrincipal(ctx));
 
 bot.hears('🤖 IA: ¿Qué me tatuo?', (ctx) => {
     if (!db.fichas[ctx.from.id]) {
-        return ctx.reply('🤖 **BLOQUEO DE IA**\nNecesito conocer tu estilo primero.\n\n¿Has enviado ya tu ficha?',
+        return ctx.reply('🤖 **CONSEJO DE IA**\nSe recomienda enviar tu ficha primero para que el diseño se adapte mejor a tu zona del cuerpo y estilo.\n\n¿Quieres rellenarla ahora o continuar directamente?',
             Markup.inlineKeyboard([
-                [Markup.button.callback('✅ Sí, enviarla ahora', 'ir_a_formulario')],
-                [Markup.button.callback('❌ No, volver', 'volver_ia')]
+                [Markup.button.callback('✅ Rellenar Ficha', 'ir_a_formulario')],
+                [Markup.button.callback('🚀 Continuar a la IA', 'continuar_ia')]
             ])
         );
     }
     return ctx.scene.enter('ia-wizard');
 });
 
+bot.action('continuar_ia', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('ia-wizard'); });
 bot.action('nueva_ia', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('ia-wizard'); });
 bot.action('ir_a_formulario', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('tattoo-wizard'); });
 bot.action('volver_ia', (ctx) => { ctx.answerCbQuery(); return ctx.editMessageText('Vuelve cuando quieras.'); });
