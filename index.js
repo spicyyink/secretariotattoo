@@ -1,5 +1,3 @@
-He integrado las 5 funciones solicitadas (Generador de Cupones, Programador de Mensajes, Gestor de Consentimiento, Modo Mantenimiento y Recordatorio de Citas) manteniendo intacta toda tu lógica original.
-He añadido una nueva sección de escenas para gestionar la entrada de datos de estas funciones y he actualizado el Panel de Control para que tengas acceso a todo.
 require('dotenv').config();
 const { Telegraf, Scenes, session, Markup } = require('telegraf');
 const http = require('http');
