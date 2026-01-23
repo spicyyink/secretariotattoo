@@ -21,9 +21,9 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 const MI_ID = process.env.MI_ID; 
 
 // ==========================================
-// 2. BASE DE DATOS LOCAL (PARA RENDER)
+// 2. BASE DE DATOS LOCAL (CON PUNTOS)
 // ==========================================
-let db = { clics: {}, referidos: {}, confirmados: {}, invitados: {}, fichas: {} };
+let db = { clics: {}, referidos: {}, confirmados: {}, invitados: {}, fichas: {}, puntos: {} };
 const DATA_FILE = path.join('/tmp', 'database.json');
 
 if (fs.existsSync(DATA_FILE)) {
@@ -33,6 +33,7 @@ if (fs.existsSync(DATA_FILE)) {
         if (!db.fichas) db.fichas = {};
         if (!db.referidos) db.referidos = {};
         if (!db.confirmados) db.confirmados = {};
+        if (!db.puntos) db.puntos = {}; // Inicializar puntos
     } catch (e) { console.log("Error al cargar DB"); }
 }
 
@@ -48,114 +49,37 @@ function guardar() {
 function traducirTerminos(texto) {
     if (!texto) return "";
     const diccionario = {
-        'blanco y negro': 'black and gray',
-        'color': 'full color',
-        'realismo': 'photorealistic',
-        'fine line': 'ultra fine line',
-        'blackwork': 'heavy blackwork',
-        'lettering': 'custom calligraphy',
-        'tradicional': 'old school traditional',
-        'neotradicional': 'neo-traditional',
-        'acuarela': 'watercolor style',
-        'puntillismo': 'dotwork style',
-        'antebrazo': 'forearm',
-        'bíceps': 'biceps',
-        'biceps': 'biceps',
-        'hombro': 'shoulder',
-        'costillas': 'ribs',
-        'esternón': 'sternum',
-        'esternon': 'sternum',
-        'espalda': 'back',
-        'muslo': 'thigh',
-        'gemelo': 'calf',
-        'tobillo': 'ankle',
-        'mano': 'hand',
-        'cuello': 'neck',
-        'muñeca': 'wrist',
-        'rodilla': 'knee',
-        'cara': 'face',
-        'pies': 'feet',
-        'columna': 'spine',
-        'codo': 'elbow',
-        'axila': 'armpit',
-        'lobo': 'wolf',
-        'león': 'lion',
-        'leon': 'lion',
-        'tigre': 'tiger',
-        'serpiente': 'snake',
-        'dragón': 'dragon',
-        'dragon': 'dragon',
-        'águila': 'eagle',
-        'aguila': 'eagle',
-        'búho': 'owl',
-        'buho': 'owl',
-        'calavera': 'skull',
-        'catrina': 'sugar skull catrina',
-        'mariposa': 'butterfly',
-        'fénix': 'phoenix',
-        'fenix': 'phoenix',
-        'carpa koi': 'koi fish',
-        'samurái': 'samurai',
-        'samurai': 'samurai',
-        'aullando': 'howling',
-        'saltando': 'leaping',
-        'rugiendo': 'roaring',
-        'corriendo': 'running',
-        'volando': 'flying',
-        'mirando de frente': 'frontal view pose',
-        'perfil': 'side profile view',
-        'posición de alerta': 'alert stance',
-        'agazapado': 'crouching',
-        'ataque': 'attacking pose',
-        'bosque': 'deep forest',
-        'sabana': 'savannah',
-        'selva': 'jungle',
-        'nubes': 'ethereal clouds',
-        'mandalas': 'intricate mandala patterns',
-        'fondo limpio': 'clean solid background',
-        'montañas': 'mountains',
-        'mar': 'ocean waves',
-        'espacio': 'outer space stars',
-        'geometría': 'geometric patterns',
-        'cielo despejado': 'clear sky',
-        'luz dramática': 'dramatic high-contrast lighting',
-        'luz dramatica': 'dramatic high-contrast lighting',
-        'sombras suaves': 'soft_smooth shading',
-        'alto contraste': 'high contrast cinematic lighting',
+        'blanco y negro': 'black and gray', 'color': 'full color', 'realismo': 'photorealistic',
+        'fine line': 'ultra fine line', 'blackwork': 'heavy blackwork', 'lettering': 'custom calligraphy',
+        'tradicional': 'old school traditional', 'neotradicional': 'neo-traditional', 'acuarela': 'watercolor style',
+        'puntillismo': 'dotwork style', 'antebrazo': 'forearm', 'bíceps': 'biceps', 'biceps': 'biceps',
+        'hombro': 'shoulder', 'costillas': 'ribs', 'esternón': 'sternum', 'esternon': 'sternum',
+        'espalda': 'back', 'muslo': 'thigh', 'gemelo': 'calf', 'tobillo': 'ankle', 'mano': 'hand',
+        'cuello': 'neck', 'muñeca': 'wrist', 'rodilla': 'knee', 'cara': 'face', 'pies': 'feet',
+        'columna': 'spine', 'codo': 'elbow', 'axila': 'armpit', 'lobo': 'wolf', 'león': 'lion',
+        'leon': 'lion', 'tigre': 'tiger', 'serpiente': 'snake', 'dragón': 'dragon', 'dragon': 'dragon',
+        'águila': 'eagle', 'aguila': 'eagle', 'búho': 'owl', 'buho': 'owl', 'calavera': 'skull',
+        'catrina': 'sugar skull catrina', 'mariposa': 'butterfly', 'fénix': 'phoenix', 'fenix': 'phoenix',
+        'carpa koi': 'koi fish', 'samurái': 'samurai', 'samurai': 'samurai', 'aullando': 'howling',
+        'saltando': 'leaping', 'rugiendo': 'roaring', 'corriendo': 'running', 'volando': 'flying',
+        'mirando de frente': 'frontal view pose', 'perfil': 'side profile view', 'posición de alerta': 'alert stance',
+        'agazapado': 'crouching', 'ataque': 'attacking pose', 'bosque': 'deep forest', 'sabana': 'savannah',
+        'selva': 'jungle', 'nubes': 'ethereal clouds', 'mandalas': 'intricate mandala patterns',
+        'fondo limpio': 'clean solid background', 'montañas': 'mountains', 'mar': 'ocean waves',
+        'espacio': 'outer space stars', 'geometría': 'geometric patterns', 'cielo despejado': 'clear sky',
+        'luz dramática': 'dramatic high-contrast lighting', 'luz dramatica': 'dramatic high-contrast lighting',
+        'sombras suaves': 'soft_smooth shading', 'alto contraste': 'high contrast cinematic lighting',
         'hiperrealista': 'hyper-realistic masterpiece, extreme macro photography detail, 8k resolution, ultra-detailed skin textures, depth of field, sharp focus, cinematic volumetric lighting',
-        'minimalista': 'clean minimalist',
-        'muy sombreado': 'heavy atmospheric shading',
-        'microrealismo': 'micro-realism',
-        'rosas': 'blooming roses',
-        'flores': 'flowers',
-        'dagas': 'sharp daggers',
-        'espada': 'sword',
-        'fuego': 'burning flames',
-        'reloj': 'pocket watch',
-        'brújula': 'compass',
-        'brujula': 'compass',
-        'corona': 'crown',
-        'alas': 'angel wings',
-        'nada': 'none',
-        'línea fina': 'fine-line work',
-        'linea fina': 'fine-line work',
-        'línea gruesa': 'bold traditional lines',
-        'linea gruesa': 'bold traditional lines',
-        'sin líneas': 'no-outline 3D style',
-        'sin lineas': 'no-outline 3D style',
-        'fotorealista': 'photorealistic rendering',
-        'vertical alargado': 'vertical elongated',
-        'circular': 'circular composition',
-        'diamante': 'diamond-shaped frame',
-        'al gusto': 'custom artistic composition',
-        'natural': 'natural flow',
-        'oscuridad': 'dark moody gothic atmosphere',
-        'paz': 'serene and peaceful vibe',
-        'fuerza': 'powerful and aggressive energy',
-        'elegancia': 'elegant and sophisticated style',
-        'misterio': 'mysterious aura',
-        'tristeza': 'melancholic feel',
-        'libertad': 'sense of freedom',
+        'minimalista': 'clean minimalist', 'muy sombreado': 'heavy atmospheric shading', 'microrealismo': 'micro-realism',
+        'rosas': 'blooming roses', 'flores': 'flowers', 'dagas': 'sharp daggers', 'espada': 'sword',
+        'fuego': 'burning flames', 'reloj': 'pocket watch', 'brújula': 'compass', 'brujula': 'compass',
+        'corona': 'crown', 'alas': 'angel wings', 'nada': 'none', 'línea fina': 'fine-line work',
+        'linea fina': 'fine-line work', 'línea gruesa': 'bold traditional lines', 'linea gruesa': 'bold traditional lines',
+        'sin líneas': 'no-outline 3D style', 'sin lineas': 'no-outline 3D style', 'fotorealista': 'photorealistic rendering',
+        'vertical alargado': 'vertical elongated', 'circular': 'circular composition', 'diamante': 'diamond-shaped frame',
+        'al gusto': 'custom artistic composition', 'natural': 'natural flow', 'oscuridad': 'dark moody gothic atmosphere',
+        'paz': 'serene and peaceful vibe', 'fuerza': 'powerful and aggressive energy', 'elegancia': 'elegant and sophisticated style',
+        'misterio': 'mysterious aura', 'tristeza': 'melancholic feel', 'libertad': 'sense of freedom',
         'fuerza, oscuridad': 'powerful energy and dark atmosphere'
     };
 
@@ -201,12 +125,13 @@ function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
 }
 
 // ==========================================
-// 5. MENÚ PRINCIPAL
+// 5. MENÚ PRINCIPAL (BOTONES AÑADIDOS)
 // ==========================================
 function irAlMenuPrincipal(ctx) {
     return ctx.reply('✨ S P I C Y  I N K ✨\n━━━━━━━━━━━━━━━━━━━━\nGestión de citas y eventos exclusivos.\n\nSelecciona una opción:',
         Markup.keyboard([
             ['🔥 Hablar con el Tatuador', '💉 Minar Tinta'],
+            ['🏷️ Promociones', '💎 Club de Afiliados'], // <--- NUEVOS BOTONES
             ['💡 Consultar Ideas', '🤖 IA: ¿Qué me tatuo?'],
             ['👥 Mis Referidos', '🧼 Cuidados'],
             ['🎁 Sorteos']
@@ -238,7 +163,6 @@ mineScene.action('minar_punto', async (ctx) => {
 });
 mineScene.action('volver_menu', async (ctx) => { await ctx.scene.leave(); return irAlMenuPrincipal(ctx); });
 
-// --- ESCENA DE FORMULARIO (Sin selección de modo) ---
 const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     (ctx) => { ctx.reply('⚠️ FORMULARIO DE CITA\n━━━━━━━━━━━━━━━━━━━━\nEscribe tu Nombre Completo:'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('🔞 ¿Edad?', Markup.keyboard([['+18 años', '+16 años'], ['Menor de 16']]).oneTime().resize()); return ctx.wizard.next(); },
@@ -302,11 +226,12 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
         guardar();
         const estimacion = calcularPresupuesto(d.tamano, d.zona, d.estilo, d.tieneFoto);
         
-        const fichaAdmin = `🔔 **NUEVA SOLICITUD**\n━━━━━━━━━━━━━━━━━━━━\n👤 **Nombre:** ${d.nombre}\n🔞 **Edad:** ${d.edad}\n📍 **Zona:** ${d.zona}\n📏 **Tamaño:** ${d.tamano}\n🎨 **Estilo:** ${d.estilo}\n🏥 **Salud:** ${d.salud}\n📞 **WhatsApp:** +${d.telefono}\n\n💰 **${estimacion.split('\n')[0]}**`;
+        const fichaAdmin = `🔔 **NUEVA SOLICITUD**\n━━━━━━━━━━━━━━━━━━━━\n👤 **ID Usuario:** \`${ctx.from.id}\`\n👤 **Nombre:** ${d.nombre}\n🔞 **Edad:** ${d.edad}\n📍 **Zona:** ${d.zona}\n📏 **Tamaño:** ${d.tamano}\n🎨 **Estilo:** ${d.estilo}\n🏥 **Salud:** ${d.salud}\n📞 **WhatsApp:** +${d.telefono}\n\n💰 **${estimacion.split('\n')[0]}**`;
         
-        await ctx.telegram.sendMessage(MI_ID, fichaAdmin, Markup.inlineKeyboard([
-            [Markup.button.url('📲 Hablar por WhatsApp', `https://wa.me/${d.telefono}`)]
-        ]));
+        await ctx.telegram.sendMessage(MI_ID, fichaAdmin, {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard([[Markup.button.url('📲 Hablar por WhatsApp', `https://wa.me/${d.telefono}`)]])
+        });
         if (d.foto) await ctx.telegram.sendPhoto(MI_ID, d.foto, { caption: `🖼️ Referencia de ${d.nombre}` });
 
         await ctx.reply(`✅ SOLICITUD ENVIADA\n━━━━━━━━━━━━━━━━━━━━\n${estimacion}`);
@@ -314,7 +239,6 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     }
 );
 
-// --- ESCENA DE IA (Inicia con selección de Modo) ---
 const iaScene = new Scenes.WizardScene('ia-wizard',
     (ctx) => {
         ctx.wizard.state.ai = {};
@@ -392,15 +316,11 @@ const iaScene = new Scenes.WizardScene('ia-wizard',
     async (ctx) => {
         const ai = ctx.wizard.state.ai;
         ai.sentimiento = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
-        
         const f = db.fichas[ctx.from.id] || { zona: "body", estilo: "artistic" };
         const p = (val) => (val === 'none' ? '' : traducirTerminos(val));
-
         const prompt = `Professional tattoo design in ${ai.modo} style, featuring ${p(ai.elemento)}, ${p(ai.accion)}. Background: ${p(ai.fondo)}. Lighting: ${p(ai.luz)}. Detail: ${p(ai.detalle)}. Palette: ${p(ai.color)}. Elements: ${p(ai.extra)}. Linework: ${p(ai.lineas)}. Composition: ${p(ai.forma)}. Mood: ${p(ai.sentimiento)}. Optimized for ${traducirTerminos(f.zona)}. 8k, high contrast, clean white background, master quality.`;
-        
         const encodedPrompt = encodeURIComponent(`Genera una imagen de tatuaje con este prompt en inglés: ${prompt}`);
         const geminiUrl = `https://gemini.google.com/app?q=${encodedPrompt}`;
-
         await ctx.reply(`🧠 **PROMPT PROFESIONAL GENERADO**\n━━━━━━━━━━━━━━━━━━━━\n<code>${prompt}</code>`, {
             parse_mode: 'HTML',
             ...Markup.removeKeyboard(),
@@ -447,17 +367,41 @@ bot.start((ctx) => {
     return irAlMenuPrincipal(ctx);
 });
 
+// --- LÓGICA DE PROMOCIONES ---
+bot.hears('🏷️ Promociones', (ctx) => {
+    return ctx.reply('🏷️ **CANAL DE PROMOCIONES**\n━━━━━━━━━━━━━━━━━━━━\nÚnete para recibir ofertas flash y descuentos mensuales.', 
+        Markup.inlineKeyboard([[Markup.button.url('📲 Entrar al Grupo', 'https://t.me/+rnjk7xiUjFhlMzdk')]]));
+});
+
+// --- LÓGICA DE AFILIADOS (PUNTOS) ---
+bot.hears('💎 Club de Afiliados', (ctx) => {
+    const uid = ctx.from.id;
+    const pts = db.puntos[uid] || 0;
+    const texto = `💎 **SISTEMA DE PUNTOS VIP**\n━━━━━━━━━━━━━━━━━━━━\nPor cada tatuaje realizado sumas puntos para premios.\n\n💰 **Tus puntos actuales:** \`${pts} Puntos\`\n\n🏆 **TABLA DE PREMIOS:**\n• 5 pts: Crema de cuidado gratis\n• 10 pts: 25% DTO en próximo tattoo\n• 20 pts: Tattoo pequeño GRATIS\n\n*Los puntos se asignan en el estudio al terminar tu sesión.*`;
+    return ctx.reply(texto, { parse_mode: 'Markdown' });
+});
+
+// --- COMANDO PARA QUE EL TATUADOR ASIGNE PUNTOS ---
+// Uso: /canjear ID_USUARIO PUNTOS (Ej: /canjear 123456 5)
+bot.command('canjear', (ctx) => {
+    if (ctx.from.id.toString() !== MI_ID.toString()) return;
+    const args = ctx.message.text.split(' ');
+    if (args.length < 3) return ctx.reply('❌ Uso: /canjear ID PUNTOS');
+    const targetId = args[1];
+    const ptsToAdd = parseInt(args[2]);
+    db.puntos[targetId] = (db.puntos[targetId] || 0) + ptsToAdd;
+    guardar();
+    ctx.reply(`✅ Puntos actualizados para el usuario ${targetId}.`);
+    ctx.telegram.sendMessage(targetId, `🎉 ¡Has recibido ${ptsToAdd} puntos en el Club de Afiliados! Consulta tus puntos en el menú.`);
+});
+
 bot.hears('👥 Mis Referidos', (ctx) => {
     const uid = ctx.from.id;
     const count = db.referidos[uid] || 0;
     const conf = db.confirmados[uid] || 0;
     const link = `https://t.me/${ctx.botInfo.username}?start=${uid}`;
-    
     const textoReferidos = `👥 S I S T E M A  D E  S O C I O S\n━━━━━━━━━━━━━━━━━━━━\n🔗 **Tu enlace:**\n${link}\n\n📊 **Confirmados:** ${conf} / 3\n\nRECOMPENSAS EXCLUSIVAS:\nSi 3 personas se tatúan con tu enlace:\n✅ 100% DTO en Tattoos Pequeños\n✅ 100% DTO en Tattoos Medianos\n✅ 50% DTO en Tattoos Grandes`;
-    
-    return ctx.reply(textoReferidos, Markup.inlineKeyboard([
-        [Markup.button.callback('✅ ¡ME HE TATUADO!', 'confirmar_tattoo')]
-    ]));
+    return ctx.reply(textoReferidos, Markup.inlineKeyboard([[Markup.button.callback('✅ ¡ME HE TATUADO!', 'confirmar_tattoo')]]));
 });
 
 bot.action('confirmar_tattoo', (ctx) => {
