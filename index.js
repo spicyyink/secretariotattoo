@@ -119,7 +119,6 @@ function irAlMenuPrincipal(ctx) {
 // 6. ESCENAS
 // ==========================================
 
-// --- ESCENA MINADO ---
 const mineScene = new Scenes.BaseScene('mine-scene');
 mineScene.enter((ctx) => {
     const uid = ctx.from.id;
@@ -140,7 +139,6 @@ mineScene.action('minar_punto', async (ctx) => {
 });
 mineScene.action('volver_menu', async (ctx) => { await ctx.scene.leave(); return irAlMenuPrincipal(ctx); });
 
-// --- ESCENA FORMULARIO DE CITA ---
 const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     (ctx) => { ctx.reply('⚠️ FORMULARIO DE CITA\n━━━━━━━━━━━━━━━━━━━━\nEscribe tu Nombre Completo:'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('🔞 ¿Edad?', Markup.keyboard([['+18 años', '+16 años'], ['Menor de 16']]).oneTime().resize()); return ctx.wizard.next(); },
@@ -216,56 +214,56 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     }
 );
 
-// --- ESCENA DE IA (11 PASOS) ---
+// --- ESCENA DE IA (PROMPT PROFESIONAL + BOTÓN COPIAR) ---
 const iaScene = new Scenes.WizardScene('ia-wizard',
     (ctx) => {
         ctx.wizard.state.ai = {};
-        ctx.reply('🤖 **GENERADOR PROFESIONAL (1/10)**\n¿Cuál es el elemento principal? (Ej: Un lobo, una calavera...)');
+        ctx.reply('🤖 **DISEÑADOR IA (1/10)**\n¿Cuál es el elemento principal? (Ej: Un guerrero samurái)');
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.elemento = ctx.message.text;
-        ctx.reply('**(2/10)** ¿Qué está haciendo o en qué postura está? (Ej: Aullando, saltando, posición frontal...)');
+        ctx.reply('**(2/10)** ¿Qué postura o acción tiene? (Ej: De perfil, atacando, sentado...)');
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.accion = ctx.message.text;
-        ctx.reply('**(3/10)** ¿Qué hay de fondo? (Ej: Bosque, nubes, mandalas, fondo limpio...)');
+        ctx.reply('**(3/10)** ¿Qué hay al fondo? (Ej: Círculo zen, nubes, geometría, fondo blanco...)');
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.fondo = ctx.message.text;
-        ctx.reply('**(4/10)** ¿Cómo es la iluminación? (Ej: Luz dramática, sombras suaves, alto contraste...)');
+        ctx.reply('**(4/10)** ¿Cómo es la iluminación? (Ej: Luz dramática, sombras duras, luz suave...)');
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.luz = ctx.message.text;
-        ctx.reply('**(5/10)** ¿Nivel de detalle? (Ej: Hiperrealista, minimalista, muy sombreado...)');
+        ctx.reply('**(5/10)** ¿Nivel de detalle? (Ej: Micro-realismo, trazos gruesos, boceto...)');
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.detalle = ctx.message.text;
-        ctx.reply('**(6/10)** ¿Gama de colores?', Markup.keyboard([['Blanco y Negro', 'Color']]).oneTime().resize());
+        ctx.reply('**(6/10)** ¿Color o B/N?', Markup.keyboard([['Blanco y Negro', 'Color']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.color = ctx.message.text;
-        ctx.reply('**(7/10)** ¿Algún elemento extra? (Ej: Rosas alrededor, dagas, fuego...)');
+        ctx.reply('**(7/10)** ¿Objetos secundarios? (Ej: Flores de loto, serpientes, fuego...)');
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.extra = ctx.message.text;
-        ctx.reply('**(8/10)** ¿Tipo de línea? (Ej: Línea fina, línea gruesa tradicional, sin líneas...)');
+        ctx.reply('**(8/10)** ¿Tipo de trazo? (Ej: Fine line, puntillismo, sombreado suave...)');
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.lineas = ctx.message.text;
-        ctx.reply('**(9/10)** ¿Composición/Forma? (Ej: Vertical alargado, circular, forma de diamante...)');
+        ctx.reply('**(9/10)** ¿Composición? (Ej: Diseño vertical, envolvente, simétrico...)');
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.forma = ctx.message.text;
-        ctx.reply('**(10/10)** ¿Qué sensación debe transmitir? (Ej: Oscuridad, paz, fuerza, elegancia...)');
+        ctx.reply('**(10/10)** ¿Qué atmósfera buscas? (Ej: Mística, agresiva, melancólica...)');
         return ctx.wizard.next();
     },
     async (ctx) => {
@@ -274,17 +272,21 @@ const iaScene = new Scenes.WizardScene('ia-wizard',
         
         const f = db.fichas[ctx.from.id] || { zona: "body", estilo: "artistic" };
 
-        const prompt = `Professional tattoo flash design of ${ai.elemento}, ${ai.accion}. Background: ${ai.fondo}. Lighting: ${ai.luz}. Detail: ${ai.detalle}. Palette: ${traducirTerminos(ai.color)}. Elements: ${ai.extra}. Linework: ${ai.lineas}. Composition: ${ai.forma}. Mood: ${ai.sentimiento}. Optimized for ${traducirTerminos(f.zona)} in ${traducirTerminos(f.estilo)} style. 8k, high contrast, clean white background, master quality.`;
+        const prompt = `Professional tattoo flash design of ${ai.elemento}, ${ai.accion}. Background: ${ai.fondo}. Lighting: ${ai.luz}. Detail: ${ai.detalle}. Palette: ${traducirTerminos(ai.color)}. Elements: ${ai.extra}. Linework: ${ai.lineas}. Composition: ${ai.forma}. Mood: ${ai.sentimiento}. Optimized for ${traducirTerminos(f.zona)} in ${traducirTerminos(f.estilo)} style. 8k resolution, high contrast, clean white background, master quality.`;
         
         const encodedPrompt = encodeURIComponent(`Genera una imagen de tatuaje con este prompt en inglés: ${prompt}`);
         const geminiUrl = `https://gemini.google.com/app?q=${encodedPrompt}`;
+        
+        // Link de copia rápida
+        const copyUrl = `https://t.me/share/url?url=${encodeURIComponent(prompt)}&text=Copia%20este%20prompt%20para%20tu%20IA:`;
 
-        const msgExtra = `\n\n💬 Copia y pega el comando anterior dentro de este enlace, que es la IA que usa el tatuador por el procesamiento **NanoBananaIA**. También puedes copiar y pegar en una IA que sea de tu gusto y genere imagen. La mía es gratuita y puedes generar hasta 50 imágenes al día.`;
+        const msgExtra = `\n\n💬 Copia y pega el comando anterior dentro de este enlace, que es la IA que usa el tatuador por el procesamiento **NanoBananaIA**. También puedes usar cualquier otra IA. La mía es gratuita y permite hasta 50 imágenes al día.`;
 
-        await ctx.reply(`🧠 **PROMPT PROFESIONAL GENERADO**\n━━━━━━━━━━━━━━━━━━━━\n<code>${prompt}</code>${msgExtra}`, {
+        await ctx.reply(`🧠 **DISEÑO IA GENERADO**\n━━━━━━━━━━━━━━━━━━━━\n<code>${prompt}</code>${msgExtra}`, {
             parse_mode: 'HTML',
             ...Markup.inlineKeyboard([
-                [Markup.button.url('🎨 GENERAR EN GOOGLE GEMINI', geminiUrl)],
+                [Markup.button.url('📋 COPIAR PROMPT', copyUrl)],
+                [Markup.button.url('🎨 GENERAR EN GEMINI', geminiUrl)],
                 [Markup.button.callback('🔄 Otra idea', 'nueva_ia')]
             ])
         });
@@ -306,7 +308,7 @@ const ideasScene = new Scenes.WizardScene('ideas-scene',
 );
 
 // ==========================================
-// 7. MIDDLEWARES Y REGISTRO
+// 7. MIDDLEWARES Y LANZAMIENTO
 // ==========================================
 const stage = new Scenes.Stage([tattooScene, mineScene, ideasScene, iaScene]);
 bot.use(session());
@@ -337,3 +339,7 @@ bot.hears('🧼 Cuidados', (ctx) => ctx.reply('Jabón neutro y crema 3 veces al 
 bot.hears('🎁 Sorteos', (ctx) => ctx.reply('🎁 SORTEO ACTIVO: https://t.me/+bAbJXSaI4rE0YzM0'));
 
 bot.launch().then(() => console.log('🚀 Bot Funcionando'));
+
+// Evitar caídas en Render
+process.on('unhandledRejection', (reason) => console.log('Unhandled:', reason));
+process.on('uncaughtException', (err) => console.log('Exception:', err));
