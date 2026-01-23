@@ -16,12 +16,6 @@ server.listen(process.env.PORT || 3000);
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const MI_ID = process.env.MI_ID; 
 
-const getUserLink = (ctx) => {
-    const user = ctx.from;
-    if (user.username) return `@${user.username}`;
-    return `<a href="tg://user?id=${user.id}">${user.first_name}</a>`;
-};
-
 // ==========================================
 // 2. BASE DE DATOS LOCAL (PARA RENDER)
 // ==========================================
@@ -43,7 +37,34 @@ function guardar() {
 }
 
 // ==========================================
-// 3. LÓGICA DE PRESUPUESTO DINÁMICA
+// 3. UTILIDADES DE TRADUCCIÓN PARA IA
+// ==========================================
+function traducirTerminos(texto) {
+    const diccionario = {
+        'blanco y negro': 'black and gray',
+        'color': 'full color',
+        'antebrazo': 'forearm',
+        'bíceps': 'biceps',
+        'hombro': 'shoulder',
+        'costillas': 'ribs',
+        'esternón': 'sternum',
+        'espalda': 'back',
+        'muslo': 'thigh',
+        'gemelo': 'calf',
+        'tobillo': 'ankle',
+        'mano': 'hand',
+        'cuello': 'neck',
+        'muñeca': 'wrist'
+    };
+    let traducido = texto.toLowerCase();
+    for (const [es, en] of Object.entries(diccionario)) {
+        traducido = traducido.replace(new RegExp(es, 'g'), en);
+    }
+    return traducido;
+}
+
+// ==========================================
+// 4. LÓGICA DE PRESUPUESTO DINÁMICA
 // ==========================================
 function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
     const cms = parseInt(tamanoStr.replace(/\D/g, '')) || 0;
@@ -76,7 +97,7 @@ function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
 }
 
 // ==========================================
-// 4. MENÚ PRINCIPAL
+// 5. MENÚ PRINCIPAL
 // ==========================================
 function irAlMenuPrincipal(ctx) {
     return ctx.reply('✨ S P I C Y  I N K ✨\n━━━━━━━━━━━━━━━━━━━━\nGestión de citas y eventos exclusivos.\n\nSelecciona una opción:',
@@ -90,9 +111,10 @@ function irAlMenuPrincipal(ctx) {
 }
 
 // ==========================================
-// 5. ESCENAS
+// 6. ESCENAS
 // ==========================================
 
+// --- ESCENA MINADO ---
 const mineScene = new Scenes.BaseScene('mine-scene');
 mineScene.enter((ctx) => {
     const uid = ctx.from.id;
@@ -113,6 +135,7 @@ mineScene.action('minar_punto', async (ctx) => {
 });
 mineScene.action('volver_menu', async (ctx) => { await ctx.scene.leave(); return irAlMenuPrincipal(ctx); });
 
+// --- ESCENA FORMULARIO DE CITA ---
 const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     (ctx) => { ctx.reply('⚠️ FORMULARIO DE CITA\n━━━━━━━━━━━━━━━━━━━━\nEscribe tu Nombre Completo:'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('🔞 ¿Edad?', Markup.keyboard([['+18 años', '+16 años'], ['Menor de 16']]).oneTime().resize()); return ctx.wizard.next(); },
@@ -167,22 +190,29 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
             ctx.wizard.state.f.tieneFoto = false;
             ctx.answerCbQuery();
         } else return ctx.reply('⚠️ Envía una foto o pulsa el botón.');
-        ctx.reply('📲 WhatsApp:'); return ctx.wizard.next();
+        ctx.reply('📲 WhatsApp (con prefijo, ej: 34600000000):'); return ctx.wizard.next();
     },
     async (ctx) => {
         const d = ctx.wizard.state.f;
-        d.telefono = ctx.message.text.replace(/\s+/g, '');
+        d.telefono = ctx.message.text.replace(/\s+/g, '').replace('+', '');
         db.fichas[ctx.from.id] = d;
         guardar();
         const estimacion = calcularPresupuesto(d.tamano, d.zona, d.estilo, d.tieneFoto);
+        
+        // --- ENVÍO DE FICHA AL ADMINISTRADOR ---
+        const fichaAdmin = `🔔 **NUEVA SOLICITUD DE CITA**\n━━━━━━━━━━━━━━━━━━━━\n👤 **Nombre:** ${d.nombre}\n🔞 **Edad:** ${d.edad}\n📍 **Zona:** ${d.zona}\n📏 **Tamaño:** ${d.tamano}\n🎨 **Estilo:** ${d.estilo}\n🏥 **Salud/Alergias:** ${d.salud}\n📞 **WhatsApp:** +${d.telefono}\n\n💰 **${estimacion.split('\n')[0]}**`;
+        
+        await ctx.telegram.sendMessage(MI_ID, fichaAdmin, Markup.inlineKeyboard([
+            [Markup.button.url('📲 Hablar por WhatsApp', `https://wa.me/${d.telefono}`)]
+        ]));
+        if (d.foto) await ctx.telegram.sendPhoto(MI_ID, d.foto, { caption: `🖼️ Referencia de ${d.nombre}` });
+
         await ctx.reply(`✅ SOLICITUD ENVIADA\n━━━━━━━━━━━━━━━━━━━━\n${estimacion}`);
         return ctx.scene.leave();
     }
 );
 
-// ==========================================
-// ESCENA DE IA: CUESTIONARIO Y PROMPT
-// ==========================================
+// --- ESCENA DE IA ---
 const iaScene = new Scenes.WizardScene('ia-wizard',
     (ctx) => {
         ctx.reply('🤖 **DISEÑADOR VIRTUAL**\n━━━━━━━━━━━━━━━━━━━━\n¿Qué elemento principal quieres en tu tatuaje? (Ej: Un lobo, una rosa, una brújula...)');
@@ -204,15 +234,21 @@ const iaScene = new Scenes.WizardScene('ia-wizard',
         const ai = ctx.wizard.state.ai;
         ai.detalle = ctx.message.text;
         
-        // Obtenemos los datos de la ficha previa del usuario
-        const f = db.fichas[ctx.from.id] || { zona: "cuerpo", estilo: "artístico" };
+        const f = db.fichas[ctx.from.id] || { zona: "body", estilo: "artistic" };
 
-        const prompt = `Tattoo design of ${ai.elemento} with ${ai.detalle}, ${ai.color}, high contrast, professional tattoo flash style, white background, detailed linework, optimized for ${f.zona} area, in ${f.estilo} style.`;
+        // Traducción de los campos para el prompt
+        const elementoEN = ai.elemento; // El elemento suele ser simple, lo dejamos igual o podrías añadir más lógica
+        const colorEN = traducirTerminos(ai.color);
+        const zonaEN = traducirTerminos(f.zona);
+        const estiloEN = traducirTerminos(f.estilo);
+        const detalleEN = ai.detalle;
+
+        const prompt = `Tattoo design of ${elementoEN} with ${detalleEN}, ${colorEN}, high contrast, professional tattoo flash style, white background, detailed linework, optimized for ${zonaEN} area, in ${estiloEN} style.`;
         
         const encodedPrompt = encodeURIComponent(`Genera una imagen de tatuaje con este prompt en inglés: ${prompt}`);
         const geminiUrl = `https://gemini.google.com/app?q=${encodedPrompt}`;
 
-        await ctx.reply(`🧠 **DISEÑO IA GENERADO**\n━━━━━━━━━━━━━━━━━━━━\nHe analizado tu estilo y zona favorita para crear el comando perfecto:\n\n<code>${prompt}</code>\n\n👇 **PULSA ABAJO PARA GENERAR LA IMAGEN**`, {
+        await ctx.reply(`🧠 **DISEÑO IA GENERADO**\n━━━━━━━━━━━━━━━━━━━━\nHe traducido y optimizado tu idea para Gemini:\n\n<code>${prompt}</code>\n\n👇 **PULSA ABAJO PARA GENERAR LA IMAGEN**`, {
             parse_mode: 'HTML',
             ...Markup.inlineKeyboard([
                 [Markup.button.url('🎨 GENERAR EN GOOGLE GEMINI', geminiUrl)],
@@ -237,7 +273,7 @@ const ideasScene = new Scenes.WizardScene('ideas-scene',
 );
 
 // ==========================================
-// 6. MIDDLEWARES Y REGISTRO
+// 7. REGISTRO Y LANZAMIENTO
 // ==========================================
 const stage = new Scenes.Stage([tattooScene, mineScene, ideasScene, iaScene]);
 bot.use(session());
@@ -267,4 +303,4 @@ bot.hears('💡 Consultar Ideas', (ctx) => ctx.scene.enter('ideas-scene'));
 bot.hears('🧼 Cuidados', (ctx) => ctx.reply('Jabón neutro y crema 3 veces al día.'));
 bot.hears('🎁 Sorteos', (ctx) => ctx.reply('🎁 SORTEO ACTIVO: https://t.me/+bAbJXSaI4rE0YzM0'));
 
-bot.launch().then(() => console.log('🚀 Bot Funcionando con IA Dinámica'));
+bot.launch().then(() => console.log('🚀 Bot Funcionando'));
