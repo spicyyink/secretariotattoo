@@ -49,12 +49,19 @@ function traducirTerminos(texto) {
         'fine line': 'ultra fine line',
         'blackwork': 'heavy blackwork',
         'lettering': 'custom calligraphy',
+        'tradicional': 'old school traditional',
+        'neotradicional': 'neo-traditional',
+        'acuarela': 'watercolor style',
+        'puntillismo': 'dotwork style',
+        
         // Anatomía
         'antebrazo': 'forearm',
         'bíceps': 'biceps',
+        'biceps': 'biceps',
         'hombro': 'shoulder',
         'costillas': 'ribs',
         'esternón': 'sternum',
+        'esternon': 'sternum',
         'espalda': 'back',
         'muslo': 'thigh',
         'gemelo': 'calf',
@@ -62,43 +69,116 @@ function traducirTerminos(texto) {
         'mano': 'hand',
         'cuello': 'neck',
         'muñeca': 'wrist',
-        // Elementos y descriptores comunes
+        'rodilla': 'knee',
+        'cara': 'face',
+        'pies': 'feet',
+        'columna': 'spine',
+        'codo': 'elbow',
+        'axila': 'armpit',
+
+        // Animales y Elementos Principales
         'lobo': 'wolf',
+        'león': 'lion',
+        'leon': 'lion',
+        'tigre': 'tiger',
+        'serpiente': 'snake',
+        'dragón': 'dragon',
+        'dragon': 'dragon',
+        'águila': 'eagle',
+        'aguila': 'eagle',
+        'búho': 'owl',
+        'buho': 'owl',
         'calavera': 'skull',
+        'catrina': 'sugar skull catrina',
+        'mariposa': 'butterfly',
+        'fénix': 'phoenix',
+        'fenix': 'phoenix',
+        'carpa koi': 'koi fish',
+        'samurái': 'samurai',
+        'samurai': 'samurai',
+
+        // Acciones y Posturas
         'aullando': 'howling',
         'saltando': 'leaping',
+        'rugiendo': 'roaring',
+        'corriendo': 'running',
+        'volando': 'flying',
+        'mirando de frente': 'frontal view pose',
+        'perfil': 'side profile view',
+        'posición de alerta': 'alert stance',
+        'agazapado': 'crouching',
+        'ataque': 'attacking pose',
+
+        // Fondos y Paisajes
         'bosque': 'deep forest',
-        'nubes': 'clouds',
-        'mandalas': 'mandala patterns',
+        'sabana': 'savannah',
+        'selva': 'jungle',
+        'nubes': 'ethereal clouds',
+        'mandalas': 'intricate mandala patterns',
         'fondo limpio': 'clean solid background',
+        'montañas': 'mountains',
+        'mar': 'ocean waves',
+        'espacio': 'outer space stars',
+        'geometría': 'geometric patterns',
+        'cielo despejado': 'clear sky',
+
+        // Iluminación y Detalle
         'luz dramática': 'dramatic high-contrast lighting',
         'luz dramatica': 'dramatic high-contrast lighting',
         'sombras suaves': 'soft smooth shading',
-        'alto contraste': 'high contrast',
+        'alto contraste': 'high contrast cinematic lighting',
         'hiperrealista': 'hyper-realistic 8k detail',
-        'minimalista': 'minimalist clean',
-        'muy sombreado': 'heavy shading',
-        'rosas': 'roses',
-        'dagas': 'daggers',
-        'fuego': 'flames',
+        'minimalista': 'clean minimalist',
+        'muy sombreado': 'heavy atmospheric shading',
+        'microrealismo': 'micro-realism',
+
+        // Elementos Extra
+        'rosas': 'blooming roses',
+        'flores': 'flowers',
+        'dagas': 'sharp daggers',
+        'espada': 'sword',
+        'fuego': 'burning flames',
+        'reloj': 'pocket watch',
+        'brújula': 'compass',
+        'brujula': 'compass',
+        'corona': 'crown',
+        'alas': 'angel wings',
+        'nada': 'none',
+
+        // Líneas y Composición
         'línea fina': 'fine-line work',
         'linea fina': 'fine-line work',
         'línea gruesa': 'bold traditional lines',
         'linea gruesa': 'bold traditional lines',
         'sin líneas': 'no-outline 3D style',
         'sin lineas': 'no-outline 3D style',
-        'vertical': 'vertical elongated',
+        'fotorealista': 'photorealistic rendering',
+        'vertical alargado': 'vertical elongated',
         'circular': 'circular composition',
         'diamante': 'diamond-shaped frame',
-        'oscuridad': 'dark moody atmosphere',
-        'paz': 'serene and peaceful',
-        'fuerza': 'powerful and aggressive',
-        'elegancia': 'elegant and sophisticated'
+        'al gusto': 'custom artistic composition',
+        'natural': 'natural flow',
+
+        // Sensaciones / Mood
+        'oscuridad': 'dark moody gothic atmosphere',
+        'paz': 'serene and peaceful vibe',
+        'fuerza': 'powerful and aggressive energy',
+        'elegancia': 'elegant and sophisticated style',
+        'misterio': 'mysterious aura',
+        'tristeza': 'melancholic feel',
+        'libertad': 'sense of freedom',
+        'fuerza, oscuridad': 'powerful energy and dark atmosphere'
     };
-    let traducido = texto.toLowerCase();
+
+    let traducido = texto.toLowerCase().trim();
+    
+    // Iteramos por el diccionario para reemplazar coincidencias exactas y frases
     for (const [es, en] of Object.entries(diccionario)) {
-        traducido = traducido.replace(new RegExp(es, 'g'), en);
+        // Usamos una expresión regular para detectar la palabra/frase completa
+        const regex = new RegExp(`\\b${es}\\b`, 'g');
+        traducido = traducido.replace(regex, en);
     }
+    
     return traducido;
 }
 
@@ -308,7 +388,6 @@ const iaScene = new Scenes.WizardScene('ia-wizard',
         
         const f = db.fichas[ctx.from.id] || { zona: "body", estilo: "artistic" };
 
-        // Aplicamos la traducción a cada variable individualmente para el prompt final
         const prompt = `Professional tattoo flash design of ${traducirTerminos(ai.elemento)}, ${traducirTerminos(ai.accion)}. Background: ${traducirTerminos(ai.fondo)}. Lighting: ${traducirTerminos(ai.luz)}. Detail: ${traducirTerminos(ai.detalle)}. Palette: ${traducirTerminos(ai.color)}. Elements: ${traducirTerminos(ai.extra)}. Linework: ${traducirTerminos(ai.lineas)}. Composition: ${traducirTerminos(ai.forma)}. Mood: ${traducirTerminos(ai.sentimiento)}. Optimized for ${traducirTerminos(f.zona)} in ${traducirTerminos(f.estilo)} style. 8k, high contrast, clean white background, master quality.`;
         
         const encodedPrompt = encodeURIComponent(`Genera una imagen de tatuaje con este prompt en inglés: ${prompt}`);
