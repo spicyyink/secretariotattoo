@@ -27,7 +27,9 @@ let db = {
     clics: {}, referidos: {}, confirmados: {}, invitados: {}, 
     fichas: {}, puntos: {}, cupones: {}, mantenimiento: false 
 };
-const DATA_FILE = path.join('/tmp', 'database.json');
+
+// AJUSTE: Usamos el directorio local para evitar errores de permisos en /tmp
+const DATA_FILE = path.join(__dirname, 'database.json');
 
 if (fs.existsSync(DATA_FILE)) {
     try { 
@@ -159,7 +161,6 @@ function irAlMenuPrincipal(ctx) {
 // 6. ESCENAS
 // ==========================================
 
-// --- NUEVA ESCENA: GENERADOR DE CUPONES (ADMIN) ---
 const couponScene = new Scenes.WizardScene('coupon-wizard',
     (ctx) => { ctx.reply('🎟️ **GENERADOR DE CUPONES**\nEscribe el código del cupón (ej: PROMO20):'); return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.code = ctx.message.text.toUpperCase(); ctx.reply('¿Cuántos puntos otorga este cupón?'); return ctx.wizard.next(); },
@@ -309,61 +310,61 @@ const iaScene = new Scenes.WizardScene('ia-wizard',
             return irAlMenuPrincipal(ctx);
         }
         ctx.wizard.state.ai.modo = ctx.message.text;
-        ctx.reply('⚜️TattooAI⚜️ (1/10)**\n¿Cuál es el elemento principal? (Ej: Un lobo, una calavera...)', 
+        ctx.reply('⚜️TattooAI⚜️ (1/10)\n¿Cuál es el elemento principal? (Ej: Un lobo, una calavera...)', 
             Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.elemento = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
-        ctx.reply('**(2/10)** ¿Qué está haciendo o en qué postura está? (Ej: Aullando, saltando...)', 
+        ctx.reply('(2/10) ¿Qué está haciendo o en qué postura está? (Ej: Aullando, saltando...)', 
             Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.accion = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
-        ctx.reply('**(3/10)** ¿Qué hay de fondo? (Ej: Bosque, nubes, mandalas...)', 
+        ctx.reply('(3/10) ¿Qué hay de fondo? (Ej: Bosque, nubes, mandalas...)', 
             Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.fondo = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
-        ctx.reply('**(4/10)** ¿Cómo es la iluminación? (Ej: Luz dramática, sombras suaves...)', 
+        ctx.reply('(4/10) ¿Cómo es la iluminación? (Ej: Luz dramática, sombras suaves...)', 
             Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.luz = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
-        ctx.reply('**(5/10)** ¿Nivel de detalle? (Ej: Hiperrealista, minimalista...)', 
+        ctx.reply('(5/10) ¿Nivel de detalle? (Ej: Hiperrealista, minimalista...)', 
             Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.detalle = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
-        ctx.reply('**(6/10)** ¿Gama de colores?', 
+        ctx.reply('(6/10) ¿Gama de colores?', 
             Markup.keyboard([['Blanco y Negro', 'Color'], ['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.color = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
-        ctx.reply('**(7/10)** ¿Algún elemento extra? (Ej: Rosas, dagas, fuego...)', 
+        ctx.reply('(7/10) ¿Algún elemento extra? (Ej: Rosas, dagas, fuego...)', 
             Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.extra = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
-        ctx.reply('**(8/10)** ¿Tipo de línea? (Ej: Línea fina, línea gruesa...)', 
+        ctx.reply('(8/10) ¿Tipo de línea? (Ej: Línea fina, línea gruesa...)', 
             Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.lineas = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
-        ctx.reply('**(9/10)** ¿Composición/Forma? (Ej: Vertical, circular...)', 
+        ctx.reply('(9/10) ¿Composición/Forma? (Ej: Vertical, circular...)', 
             Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.ai.forma = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
-        ctx.reply('**(10/10)** ¿Qué sensación debe transmitir? (Ej: Oscuridad, paz...)', 
+        ctx.reply('(10/10) ¿Qué sensación debe transmitir? (Ej: Oscuridad, paz...)', 
             Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
@@ -408,7 +409,7 @@ bot.use(session());
 bot.use(stage.middleware());
 
 bot.start((ctx) => {
-    const text = ctx.message.text;
+    const text = ctx.message.text || '';
     if (text.includes('start=')) {
         const inviterId = text.split('=')[1];
         if (inviterId != ctx.from.id && !db.invitados[ctx.from.id]) {
@@ -421,13 +422,11 @@ bot.start((ctx) => {
     return irAlMenuPrincipal(ctx);
 });
 
-// --- LÓGICA DE PROMOCIONES ---
 bot.hears('🏷️ Promociones', (ctx) => {
     return ctx.reply('🏷️ **CANAL DE PROMOCIONES**\n━━━━━━━━━━━━━━━━━━━━\nÚnete para recibir ofertas flash y descuentos mensuales.', 
         Markup.inlineKeyboard([[Markup.button.url('📲 Entrar al Grupo', 'https://t.me/+rnjk7xiUjFhlMzdk')]]));
 });
 
-// --- LÓGICA DE AFILIADOS (PUNTOS Y CANJE) ---
 bot.hears('💎 Club de Afiliados', (ctx) => {
     const uid = ctx.from.id;
     const pts = db.puntos[uid] || 0;
@@ -440,25 +439,18 @@ bot.action('canjear_cupon_usuario', (ctx) => {
     return ctx.reply('🎟️ **MODO CANJE**\n\nEscribe el código de tu cupón a continuación para recibir tus puntos:');
 });
 
-// --- DETECCIÓN INTELIGENTE DE TEXTO (CUPONES) ---
 bot.on('text', (ctx, next) => {
     const code = ctx.message.text.toUpperCase();
-    // Si el texto coincide con un código de cupón activo
     if (db.cupones && db.cupones[code]) {
         const val = db.cupones[code];
         db.puntos[ctx.from.id] = (db.puntos[ctx.from.id] || 0) + val;
-        
-        // Borramos el cupón para que no se use dos veces
         delete db.cupones[code]; 
         guardar();
-        
         return ctx.reply(`🎉 ¡Cupón aceptado!\n━━━━━━━━━━━━━━━━━━━━\nHas recibido **${val} puntos** en tu cuenta VIP.`);
     }
-    // Si no es un cupón, continúa con el flujo normal
     return next();
 });
 
-// --- COMANDO PARA QUE EL TATUADOR ASIGNE PUNTOS DIRECTOS ---
 bot.command('canjear', (ctx) => {
     if (ctx.from.id.toString() !== MI_ID.toString()) return;
     const args = ctx.message.text.split(' ');
@@ -471,7 +463,6 @@ bot.command('canjear', (ctx) => {
     ctx.telegram.sendMessage(targetId, `🎉 ¡Has recibido ${ptsToAdd} puntos en el Club de Afiliados! Consulta tus puntos en el menú.`);
 });
 
-// --- PANEL DE CONTROL (ADMIN ACTUALIZADO) ---
 bot.hears('📊 Panel de Control', (ctx) => {
     if (ctx.from.id.toString() !== MI_ID.toString()) return;
     return ctx.reply('🛠️ **PANEL DE ADMINISTRACIÓN**', 
@@ -517,7 +508,6 @@ bot.action('admin_volver', (ctx) => { ctx.answerCbQuery(); return irAlMenuPrinci
 
 bot.hears('👥 Mis Referidos', (ctx) => {
     const uid = ctx.from.id;
-    const count = db.referidos[uid] || 0;
     const conf = db.confirmados[uid] || 0;
     const link = `https://t.me/${ctx.botInfo.username}?start=${uid}`;
     const textoReferidos = `👥 S I S T E M A  D E  S O C I O S\n━━━━━━━━━━━━━━━━━━━━\n🔗 **Tu enlace:**\n${link}\n\n📊 **Confirmados:** ${conf} / 3\n\nRECOMPENSAS EXCLUSIVAS:\nSi 3 personas se tatúan con tu enlace:\n✅ 100% DTO en Tattoos Pequeños\n✅ 100% DTO en Tattoos Medianos\n✅ 50% DTO en Tattoos Grandes`;
@@ -535,7 +525,7 @@ bot.action('confirmar_tattoo', (ctx) => {
     return ctx.answerCbQuery('❌ No te uniste con enlace de referido.');
 });
 
-bot.hears('🤖 IA: ¿Qué me tatuo?', (ctx) => {
+bot.hears('⚜️TattooAI⚜️', (ctx) => {
     if (!db.fichas[ctx.from.id]) {
         return ctx.reply('🤖 **CONSEJO DE IA**\nSe recomienda enviar tu ficha primero para que el diseño se adapte mejor a tu zona del cuerpo y estilo.\n\n¿Quieres rellenarla ahora o continuar directamente?',
             Markup.inlineKeyboard([[Markup.button.callback('✅ Rellenar Ficha', 'ir_a_formulario')], [Markup.button.callback('🚀 Continuar a la IA', 'continuar_ia')]]));
@@ -546,7 +536,6 @@ bot.hears('🤖 IA: ¿Qué me tatuo?', (ctx) => {
 bot.action('continuar_ia', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('ia-wizard'); });
 bot.action('nueva_ia', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('ia-wizard'); });
 bot.action('ir_a_formulario', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('tattoo-wizard'); });
-bot.action('volver_ia', (ctx) => { ctx.answerCbQuery(); return ctx.editMessageText('Vuelve cuando quieras.'); });
 
 bot.hears('🔥 Hablar con el Tatuador', (ctx) => ctx.scene.enter('tattoo-wizard'));
 bot.hears('💉 Minar Tinta', (ctx) => ctx.scene.enter('mine-scene'));
