@@ -141,7 +141,7 @@ function irAlMenuPrincipal(ctx) {
     let botones = [
         ['🔥 Hablar con el Tatuador', '💉 Minar Tinta'],
         ['🏷️ Promociones', '💎 Club de Afiliados'],
-        ['💡 Consultar Ideas', '🤖 IA: ¿Qué me tatuo?'],
+        ['💡 Consultar Ideas', '⚜️TattooAI⚜️'],
         ['👥 Mis Referidos', '🧼 Cuidados'],
         ['🎁 Sorteos']
     ];
@@ -309,7 +309,7 @@ const iaScene = new Scenes.WizardScene('ia-wizard',
             return irAlMenuPrincipal(ctx);
         }
         ctx.wizard.state.ai.modo = ctx.message.text;
-        ctx.reply('🤖 **GENERADOR PROFESIONAL (1/10)**\n¿Cuál es el elemento principal? (Ej: Un lobo, una calavera...)', 
+        ctx.reply('⚜️TattooAI⚜️ (1/10)**\n¿Cuál es el elemento principal? (Ej: Un lobo, una calavera...)', 
             Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
