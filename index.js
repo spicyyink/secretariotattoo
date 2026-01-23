@@ -12,7 +12,6 @@ const server = http.createServer((req, res) => {
     res.end('Tatuador Online ✅');
 });
 
-// Corrección para Render: Escuchar en 0.0.0.0 y puerto asignado
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`Servidor HTTP activo en puerto ${PORT}`);
@@ -240,7 +239,21 @@ mineScene.action('minar_punto', async (ctx) => {
 mineScene.action('volver_menu', async (ctx) => { await ctx.scene.leave(); return irAlMenuPrincipal(ctx); });
 
 const tattooScene = new Scenes.WizardScene('tattoo-wizard',
-    (ctx) => { ctx.reply('⚠️ FORMULARIO DE CITA\n━━━━━━━━━━━━━━━━━━━━\nEscribe tu Nombre Completo:'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
+    (ctx) => { 
+        ctx.wizard.state.f = {};
+        ctx.reply('🎨 Selecciona el modo de tatuaje:', 
+            Markup.keyboard([
+                ['⚡ Flash Tattoo', '🚬 Estilo Chicano'],
+                ['✨ Personalizado', '⬅️ Volver']
+            ]).oneTime().resize());
+        return ctx.wizard.next(); 
+    },
+    (ctx) => {
+        if (ctx.message.text === '⬅️ Volver') return irAlMenuPrincipal(ctx);
+        ctx.wizard.state.f.modo = ctx.message.text;
+        ctx.reply('⚠️ FORMULARIO DE CITA\n━━━━━━━━━━━━━━━━━━━━\nEscribe tu Nombre Completo:');
+        return ctx.wizard.next();
+    },
     (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('🔞 ¿Edad?', Markup.keyboard([['+18 años', '+16 años'], ['Menor de 16']]).oneTime().resize()); return ctx.wizard.next(); },
     (ctx) => {
         if (ctx.message.text === 'Menor de 16') { ctx.reply('❌ Mínimo 16 años.'); return ctx.scene.leave(); }
@@ -262,7 +275,7 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     },
     (ctx) => { 
         ctx.wizard.state.f.tamano = ctx.message.text; 
-        ctx.reply('🎨 Selecciona el Estilo:', 
+        ctx.reply('🎨 Selecciona el Estilo técnico:', 
             Markup.inlineKeyboard([
                 [Markup.button.callback('Fine Line', 'estilo_Fine Line'), Markup.button.callback('Realismo', 'estilo_Realismo')],
                 [Markup.button.callback('Lettering', 'estilo_Lettering'), Markup.button.callback('Blackwork', 'estilo_Blackwork')],
@@ -302,7 +315,7 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
         guardar();
         const estimacion = calcularPresupuesto(d.tamano, d.zona, d.estilo, d.tieneFoto);
         
-        const fichaAdmin = `🔔 **NUEVA SOLICITUD**\n━━━━━━━━━━━━━━━━━━━━\n👤 **Nombre:** ${d.nombre}\n🔞 **Edad:** ${d.edad}\n📍 **Zona:** ${d.zona}\n📏 **Tamaño:** ${d.tamano}\n🎨 **Estilo:** ${d.estilo}\n🏥 **Salud:** ${d.salud}\n📞 **WhatsApp:** +${d.telefono}\n\n💰 **${estimacion.split('\n')[0]}**`;
+        const fichaAdmin = `🔔 **NUEVA SOLICITUD**\n━━━━━━━━━━━━━━━━━━━━\n🕹 **Modo:** ${d.modo}\n👤 **Nombre:** ${d.nombre}\n🔞 **Edad:** ${d.edad}\n📍 **Zona:** ${d.zona}\n📏 **Tamaño:** ${d.tamano}\n🎨 **Estilo:** ${d.estilo}\n🏥 **Salud:** ${d.salud}\n📞 **WhatsApp:** +${d.telefono}\n\n💰 **${estimacion.split('\n')[0]}**`;
         
         await ctx.telegram.sendMessage(MI_ID, fichaAdmin, Markup.inlineKeyboard([
             [Markup.button.url('📲 Hablar por WhatsApp', `https://wa.me/${d.telefono}`)]
@@ -314,7 +327,6 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     }
 );
 
-// --- ESCENA DE IA ACTUALIZADA CON BOTÓN SALTAR ---
 const iaScene = new Scenes.WizardScene('ia-wizard',
     (ctx) => {
         ctx.wizard.state.ai = {};
@@ -381,8 +393,6 @@ const iaScene = new Scenes.WizardScene('ia-wizard',
         ai.sentimiento = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
         
         const f = db.fichas[ctx.from.id] || { zona: "body", estilo: "artistic" };
-
-        // Limpieza de prompt: si es 'none', no se añade para no ensuciar la IA
         const p = (val) => (val === 'none' ? '' : traducirTerminos(val));
 
         const prompt = `Professional tattoo flash design of ${p(ai.elemento)}, ${p(ai.accion)}. Background: ${p(ai.fondo)}. Lighting: ${p(ai.luz)}. Detail: ${p(ai.detalle)}. Palette: ${p(ai.color)}. Elements: ${p(ai.extra)}. Linework: ${p(ai.lineas)}. Composition: ${p(ai.forma)}. Mood: ${p(ai.sentimiento)}. Optimized for ${traducirTerminos(f.zona)} in ${traducirTerminos(f.estilo)} style. 8k, high contrast, clean white background, master quality.`;
@@ -392,7 +402,7 @@ const iaScene = new Scenes.WizardScene('ia-wizard',
 
         await ctx.reply(`🧠 **PROMPT PROFESIONAL GENERADO**\n━━━━━━━━━━━━━━━━━━━━\n<code>${prompt}</code>`, {
             parse_mode: 'HTML',
-            ...Markup.removeKeyboard(), // Quitamos el teclado de saltar al finalizar
+            ...Markup.removeKeyboard(),
             ...Markup.inlineKeyboard([
                 [Markup.button.url('🎨 GENERAR EN GOOGLE GEMINI', geminiUrl)],
                 [Markup.button.callback('🔄 Otra idea', 'nueva_ia')]
@@ -401,7 +411,6 @@ const iaScene = new Scenes.WizardScene('ia-wizard',
         return ctx.scene.leave();
     }
 );
-
 
 const ideasScene = new Scenes.WizardScene('ideas-scene',
     (ctx) => {
@@ -423,7 +432,6 @@ const stage = new Scenes.Stage([tattooScene, mineScene, ideasScene, iaScene]);
 bot.use(session());
 bot.use(stage.middleware());
 
-// --- LÓGICA DE REFERIDOS ---
 bot.start((ctx) => {
     const text = ctx.message.text;
     if (text.includes('start=')) {
