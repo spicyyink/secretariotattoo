@@ -125,17 +125,28 @@ function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
 }
 
 // ==========================================
-// 5. MENÚ PRINCIPAL (BOTONES AÑADIDOS)
+// 5. MENÚ PRINCIPAL (BOTONES DINÁMICOS)
 // ==========================================
 function irAlMenuPrincipal(ctx) {
-    return ctx.reply('✨ S P I C Y  I N K ✨\n━━━━━━━━━━━━━━━━━━━━\nGestión de citas y eventos exclusivos.\n\nSelecciona una opción:',
-        Markup.keyboard([
-            ['🔥 Hablar con el Tatuador', '💉 Minar Tinta'],
-            ['🏷️ Promociones', '💎 Club de Afiliados'], // <--- NUEVOS BOTONES
-            ['💡 Consultar Ideas', '🤖 IA: ¿Qué me tatuo?'],
-            ['👥 Mis Referidos', '🧼 Cuidados'],
-            ['🎁 Sorteos']
-        ]).resize()
+    const uid = ctx.from.id;
+    const pts = db.puntos[uid] || 0;
+    
+    // Menú base para clientes
+    let botones = [
+        ['🔥 Hablar con el Tatuador', '💉 Minar Tinta'],
+        ['🏷️ Promociones', '💎 Club de Afiliados'],
+        ['💡 Consultar Ideas', '🤖 IA: ¿Qué me tatuo?'],
+        ['👥 Mis Referidos', '🧼 Cuidados'],
+        ['🎁 Sorteos']
+    ];
+
+    // Añadir botón de Panel solo si el ID coincide con el administrador
+    if (uid.toString() === MI_ID.toString()) {
+        botones.push(['📊 Panel de Control']);
+    }
+
+    return ctx.reply(`✨ S P I C Y  I N K ✨\n━━━━━━━━━━━━━━━━━━━━\n👤 **Tu ID:** \`${uid}\`\n💎 **Puntos:** \`${pts} pts\`\n━━━━━━━━━━━━━━━━━━━━\nSelecciona una opción:`,
+        Markup.keyboard(botones).resize()
     );
 }
 
@@ -393,6 +404,47 @@ bot.command('canjear', (ctx) => {
     guardar();
     ctx.reply(`✅ Puntos actualizados para el usuario ${targetId}.`);
     ctx.telegram.sendMessage(targetId, `🎉 ¡Has recibido ${ptsToAdd} puntos en el Club de Afiliados! Consulta tus puntos en el menú.`);
+});
+
+// --- PANEL DE CONTROL (ADMIN) ---
+bot.hears('📊 Panel de Control', (ctx) => {
+    if (ctx.from.id.toString() !== MI_ID.toString()) return;
+    return ctx.reply('🛠️ **PANEL DE ADMINISTRACIÓN**\n━━━━━━━━━━━━━━━━━━━━\n¿Qué acción deseas realizar?', 
+        Markup.inlineKeyboard([
+            [Markup.button.callback('👥 Lista de Usuarios', 'admin_usuarios')],
+            [Markup.button.callback('ℹ️ Ayuda Comandos', 'admin_ayuda')]
+        ]));
+});
+
+bot.action('admin_usuarios', (ctx) => {
+    const ids = Object.keys(db.puntos);
+    if (ids.length === 0) return ctx.reply("Aún no hay usuarios con puntos.");
+
+    let lista = "👥 **LISTA DE USUARIOS Y PUNTOS**\n━━━━━━━━━━━━━━━━━━━━\n";
+    ids.forEach(id => {
+        const nombre = db.fichas[id] ? db.fichas[id].nombre : "Sin nombre";
+        const pts = db.puntos[id] || 0;
+        lista += `• **${nombre}**\n  ID: \`${id}\` | Pts: ${pts}\n\n`;
+    });
+
+    return ctx.editMessageText(lista, {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([[Markup.button.callback('⬅️ Volver', 'admin_volver')]])
+    });
+});
+
+bot.action('admin_ayuda', (ctx) => {
+    return ctx.editMessageText('📝 **PARA DAR PUNTOS:**\n\nEscribe en el chat:\n`/canjear ID PUNTOS`\n\n*Ejemplo:* `/canjear 1234567 2` para dar 2 puntos.', {
+        ...Markup.inlineKeyboard([[Markup.button.callback('⬅️ Volver', 'admin_volver')]])
+    });
+});
+
+bot.action('admin_volver', (ctx) => {
+    return ctx.editMessageText('🛠️ **PANEL DE ADMINISTRACIÓN**', 
+        Markup.inlineKeyboard([
+            [Markup.button.callback('👥 Lista de Usuarios', 'admin_usuarios')],
+            [Markup.button.callback('ℹ️ Ayuda Comandos', 'admin_ayuda')]
+        ]));
 });
 
 bot.hears('👥 Mis Referidos', (ctx) => {
