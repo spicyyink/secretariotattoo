@@ -11,7 +11,12 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('Tatuador Online ✅');
 });
-server.listen(process.env.PORT || 3000);
+
+// Corrección para Render: Escuchar en 0.0.0.0 y puerto asignado
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Servidor HTTP activo en puerto ${PORT}`);
+});
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const MI_ID = process.env.MI_ID; 
@@ -27,6 +32,8 @@ if (fs.existsSync(DATA_FILE)) {
         const contenido = fs.readFileSync(DATA_FILE, 'utf-8');
         db = JSON.parse(contenido);
         if (!db.fichas) db.fichas = {};
+        if (!db.referidos) db.referidos = {};
+        if (!db.confirmados) db.confirmados = {};
     } catch (e) { console.log("Error al cargar DB"); }
 }
 
@@ -42,7 +49,6 @@ function guardar() {
 function traducirTerminos(texto) {
     if (!texto) return "";
     const diccionario = {
-        // Estilos y colores
         'blanco y negro': 'black and gray',
         'color': 'full color',
         'realismo': 'photorealistic',
@@ -53,8 +59,6 @@ function traducirTerminos(texto) {
         'neotradicional': 'neo-traditional',
         'acuarela': 'watercolor style',
         'puntillismo': 'dotwork style',
-        
-        // Anatomía
         'antebrazo': 'forearm',
         'bíceps': 'biceps',
         'biceps': 'biceps',
@@ -75,8 +79,6 @@ function traducirTerminos(texto) {
         'columna': 'spine',
         'codo': 'elbow',
         'axila': 'armpit',
-
-        // Animales y Elementos Principales
         'lobo': 'wolf',
         'león': 'lion',
         'leon': 'lion',
@@ -96,8 +98,6 @@ function traducirTerminos(texto) {
         'carpa koi': 'koi fish',
         'samurái': 'samurai',
         'samurai': 'samurai',
-
-        // Acciones y Posturas
         'aullando': 'howling',
         'saltando': 'leaping',
         'rugiendo': 'roaring',
@@ -108,8 +108,6 @@ function traducirTerminos(texto) {
         'posición de alerta': 'alert stance',
         'agazapado': 'crouching',
         'ataque': 'attacking pose',
-
-        // Fondos y Paisajes
         'bosque': 'deep forest',
         'sabana': 'savannah',
         'selva': 'jungle',
@@ -121,8 +119,6 @@ function traducirTerminos(texto) {
         'espacio': 'outer space stars',
         'geometría': 'geometric patterns',
         'cielo despejado': 'clear sky',
-
-        // Iluminación y Detalle
         'luz dramática': 'dramatic high-contrast lighting',
         'luz dramatica': 'dramatic high-contrast lighting',
         'sombras suaves': 'soft_smooth shading',
@@ -131,8 +127,6 @@ function traducirTerminos(texto) {
         'minimalista': 'clean minimalist',
         'muy sombreado': 'heavy atmospheric shading',
         'microrealismo': 'micro-realism',
-
-        // Elementos Extra
         'rosas': 'blooming roses',
         'flores': 'flowers',
         'dagas': 'sharp daggers',
@@ -144,8 +138,6 @@ function traducirTerminos(texto) {
         'corona': 'crown',
         'alas': 'angel wings',
         'nada': 'none',
-
-        // Líneas y Composición
         'línea fina': 'fine-line work',
         'linea fina': 'fine-line work',
         'línea gruesa': 'bold traditional lines',
@@ -158,8 +150,6 @@ function traducirTerminos(texto) {
         'diamante': 'diamond-shaped frame',
         'al gusto': 'custom artistic composition',
         'natural': 'natural flow',
-
-        // Sensaciones / Mood
         'oscuridad': 'dark moody gothic atmosphere',
         'paz': 'serene and peaceful vibe',
         'fuerza': 'powerful and aggressive energy',
@@ -229,7 +219,6 @@ function irAlMenuPrincipal(ctx) {
 // 6. ESCENAS
 // ==========================================
 
-// --- ESCENA MINADO ---
 const mineScene = new Scenes.BaseScene('mine-scene');
 mineScene.enter((ctx) => {
     const uid = ctx.from.id;
@@ -250,7 +239,6 @@ mineScene.action('minar_punto', async (ctx) => {
 });
 mineScene.action('volver_menu', async (ctx) => { await ctx.scene.leave(); return irAlMenuPrincipal(ctx); });
 
-// --- ESCENA FORMULARIO DE CITA ---
 const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     (ctx) => { ctx.reply('⚠️ FORMULARIO DE CITA\n━━━━━━━━━━━━━━━━━━━━\nEscribe tu Nombre Completo:'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('🔞 ¿Edad?', Markup.keyboard([['+18 años', '+16 años'], ['Menor de 16']]).oneTime().resize()); return ctx.wizard.next(); },
@@ -326,7 +314,6 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     }
 );
 
-// --- ESCENA DE IA (PROMPT CON TRADUCCIÓN PROFUNDA) ---
 const iaScene = new Scenes.WizardScene('ia-wizard',
     (ctx) => {
         ctx.wizard.state.ai = {};
@@ -422,7 +409,44 @@ const stage = new Scenes.Stage([tattooScene, mineScene, ideasScene, iaScene]);
 bot.use(session());
 bot.use(stage.middleware());
 
-bot.start((ctx) => irAlMenuPrincipal(ctx));
+// --- LÓGICA DE REFERIDOS ---
+bot.start((ctx) => {
+    const text = ctx.message.text;
+    if (text.includes('start=')) {
+        const inviterId = text.split('=')[1];
+        if (inviterId != ctx.from.id && !db.invitados[ctx.from.id]) {
+            db.invitados[ctx.from.id] = inviterId;
+            db.referidos[inviterId] = (db.referidos[inviterId] || 0) + 1;
+            guardar();
+            ctx.telegram.sendMessage(inviterId, `👥 ¡Alguien se ha unido con tu enlace!`);
+        }
+    }
+    return irAlMenuPrincipal(ctx);
+});
+
+bot.hears('👥 Mis Referidos', (ctx) => {
+    const uid = ctx.from.id;
+    const count = db.referidos[uid] || 0;
+    const conf = db.confirmados[uid] || 0;
+    const link = `https://t.me/${ctx.botInfo.username}?start=${uid}`;
+    
+    const textoReferidos = `👥 S I S T E M A  D E  S O C I O S\n━━━━━━━━━━━━━━━━━━━━\n🔗 **Tu enlace:**\n${link}\n\n📊 **Confirmados:** ${conf} / 3\n\nRECOMPENSAS EXCLUSIVAS:\nSi 3 personas se tatúan con tu enlace:\n✅ 100% DTO en Tattoos Pequeños\n✅ 100% DTO en Tattoos Medianos\n✅ 50% DTO en Tattoos Grandes`;
+    
+    return ctx.reply(textoReferidos, Markup.inlineKeyboard([
+        [Markup.button.callback('✅ ¡ME HE TATUADO!', 'confirmar_tattoo')]
+    ]));
+});
+
+bot.action('confirmar_tattoo', (ctx) => {
+    const inviterId = db.invitados[ctx.from.id];
+    if (inviterId) {
+        db.confirmados[inviterId] = (db.confirmados[inviterId] || 0) + 1;
+        guardar();
+        ctx.telegram.sendMessage(inviterId, `🎉 ¡Un referido tuyo se ha tatuado! Tu contador ha subido.`);
+        return ctx.answerCbQuery('✅ ¡Gracias por confirmar!', { show_alert: true });
+    }
+    return ctx.answerCbQuery('❌ No te uniste con enlace de referido.');
+});
 
 bot.hears('🤖 IA: ¿Qué me tatuo?', (ctx) => {
     if (!db.fichas[ctx.from.id]) {
@@ -446,6 +470,5 @@ bot.hears('💉 Minar Tinta', (ctx) => ctx.scene.enter('mine-scene'));
 bot.hears('💡 Consultar Ideas', (ctx) => ctx.scene.enter('ideas-scene'));
 bot.hears('🧼 Cuidados', (ctx) => ctx.reply('Jabón neutro y crema 3 veces al día.'));
 bot.hears('🎁 Sorteos', (ctx) => ctx.reply('🎁 **SORTEO ACTIVO (05-10 Febrero 2026)**\n━━━━━━━━━━━━━━━━━━━━\n💰 **PREMIO:** 150€\n🎨 **DISEÑO:** A elegir por el cliente\n\n🔗 **ENLACE:** https://t.me/+bAbJXSaI4rE0YzM0', { parse_mode: 'Markdown' }));
-
 
 bot.launch().then(() => console.log('🚀 Bot Funcionando'));
