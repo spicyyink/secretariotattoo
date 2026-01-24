@@ -5,58 +5,87 @@ const fs = require('fs');
 const path = require('path');
 
 // ==========================================
-// 1. MOTOR DE ARRANQUE (OPTIMIZADO RENDER)
+// 1. CONFIGURACIÓN DEL SERVIDOR
 // ==========================================
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Spicy Ink Apex-God v6.0 Online ✅');
+    res.end('Tatuador Online ✅');
 });
+
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, '0.0.0.0', () => console.log(`🚀 Engine started on port ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Servidor HTTP activo en puerto ${PORT}`);
+});
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const MI_ID = process.env.MI_ID; 
 
 // ==========================================
-// 2. ARQUITECTURA DE DATOS (PERSISTENCIA)
+// 2. BASE DE DATOS LOCAL (CON NUEVAS TABLAS)
 // ==========================================
 let db = { 
     clics: {}, referidos: {}, confirmados: {}, invitados: {}, 
-    fichas: {}, puntos: {}, usuarios: [], reseñas: [],
-    stats: { citas: 0, prompts: 0, vips: 0 } 
+    fichas: {}, puntos: {}, cupones: {}, mantenimiento: false 
 };
-const DATA_FILE = path.join('/tmp', 'spicy_ultimate_v6.json');
+const DATA_FILE = path.join('/tmp', 'database.json');
 
-const cargarDB = () => {
-    if (fs.existsSync(DATA_FILE)) {
-        try { db = { ...db, ...JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8')) }; } catch (e) { console.error("Error al leer DB"); }
-    }
-};
-cargarDB();
-const guardar = () => fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
+if (fs.existsSync(DATA_FILE)) {
+    try { 
+        const contenido = fs.readFileSync(DATA_FILE, 'utf-8');
+        db = JSON.parse(contenido);
+        if (!db.fichas) db.fichas = {};
+        if (!db.puntos) db.puntos = {};
+        if (!db.cupones) db.cupones = {};
+        if (db.mantenimiento === undefined) db.mantenimiento = false;
+    } catch (e) { console.log("Error al cargar DB"); }
+}
+
+function guardar() {
+    try {
+        fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
+    } catch (e) { console.log("Error al guardar"); }
+}
 
 // ==========================================
-// 3. CEREBRO LINGÜÍSTICO (DICCIONARIO IA)
+// 3. UTILIDADES DE TRADUCCIÓN PROFUNDA PARA IA
 // ==========================================
 function traducirTerminos(texto) {
     if (!texto) return "";
     const diccionario = {
         'blanco y negro': 'black and gray', 'color': 'full color', 'realismo': 'photorealistic',
         'fine line': 'ultra fine line', 'blackwork': 'heavy blackwork', 'lettering': 'custom calligraphy',
-        'tradicional': 'old school traditional', 'neotradicional': 'neo-traditional',
-        'acuarela': 'watercolor style', 'puntillismo': 'dotwork style', 'antebrazo': 'forearm',
-        'bíceps': 'biceps', 'hombro': 'shoulder', 'costillas': 'ribs', 'esternón': 'sternum',
+        'tradicional': 'old school traditional', 'neotradicional': 'neo-traditional', 'acuarela': 'watercolor style',
+        'puntillismo': 'dotwork style', 'antebrazo': 'forearm', 'bíceps': 'biceps', 'biceps': 'biceps',
+        'hombro': 'shoulder', 'costillas': 'ribs', 'esternón': 'sternum', 'esternon': 'sternum',
         'espalda': 'back', 'muslo': 'thigh', 'gemelo': 'calf', 'tobillo': 'ankle', 'mano': 'hand',
         'cuello': 'neck', 'muñeca': 'wrist', 'rodilla': 'knee', 'cara': 'face', 'pies': 'feet',
         'columna': 'spine', 'codo': 'elbow', 'axila': 'armpit', 'lobo': 'wolf', 'león': 'lion',
-        'tigre': 'tiger', 'serpiente': 'snake', 'dragón': 'dragon', 'águila': 'eagle', 'búho': 'owl',
-        'calavera': 'skull', 'catrina': 'sugar skull catrina', 'mariposa': 'butterfly',
-        'fénix': 'phoenix', 'carpa koi': 'koi fish', 'samurái': 'samurai', 'aullando': 'howling',
+        'leon': 'lion', 'tigre': 'tiger', 'serpiente': 'snake', 'dragón': 'dragon', 'dragon': 'dragon',
+        'águila': 'eagle', 'aguila': 'eagle', 'búho': 'owl', 'buho': 'owl', 'calavera': 'skull',
+        'catrina': 'sugar skull catrina', 'mariposa': 'butterfly', 'fénix': 'phoenix', 'fenix': 'phoenix',
+        'carpa koi': 'koi fish', 'samurái': 'samurai', 'samurai': 'samurai', 'aullando': 'howling',
         'saltando': 'leaping', 'rugiendo': 'roaring', 'corriendo': 'running', 'volando': 'flying',
-        'bosque': 'deep forest', 'nubes': 'ethereal clouds', 'mandalas': 'mandala patterns',
-        'geometría': 'geometric patterns', 'hiperrealista': 'hyper-realistic masterpiece, 8k',
-        'minimalista': 'clean minimalist', 'microrealismo': 'micro-realism'
+        'mirando de frente': 'frontal view pose', 'perfil': 'side profile view', 'posición de alerta': 'alert stance',
+        'agazapado': 'crouching', 'ataque': 'attacking pose', 'bosque': 'deep forest', 'sabana': 'savannah',
+        'selva': 'jungle', 'nubes': 'ethereal clouds', 'mandalas': 'intricate mandala patterns',
+        'fondo limpio': 'clean solid background', 'montañas': 'mountains', 'mar': 'ocean waves',
+        'espacio': 'outer space stars', 'geometría': 'geometric patterns', 'cielo despejado': 'clear sky',
+        'luz dramática': 'dramatic high-contrast lighting', 'luz dramatica': 'dramatic high-contrast lighting',
+        'sombras suaves': 'soft_smooth shading', 'alto contraste': 'high contrast cinematic lighting',
+        'hiperrealista': 'hyper-realistic masterpiece, extreme macro photography detail, 8k resolution, ultra-detailed skin textures, depth of field, sharp focus, cinematic volumetric lighting',
+        'minimalista': 'clean minimalist', 'muy sombreado': 'heavy atmospheric shading', 'microrealismo': 'micro-realism',
+        'rosas': 'blooming roses', 'flores': 'flowers', 'dagas': 'sharp daggers', 'espada': 'sword',
+        'fuego': 'burning flames', 'reloj': 'pocket watch', 'brújula': 'compass', 'brujula': 'compass',
+        'corona': 'crown', 'alas': 'angel wings', 'nada': 'none', 'línea fina': 'fine-line work',
+        'linea fina': 'fine-line work', 'línea gruesa': 'bold traditional lines', 'linea gruesa': 'bold traditional lines',
+        'sin líneas': 'no-outline 3D style', 'sin lineas': 'no-outline 3D style', 'fotorealista': 'photorealistic rendering',
+        'vertical alargado': 'vertical elongated', 'circular': 'circular composition', 'diamante': 'diamond-shaped frame',
+        'al gusto': 'custom artistic composition', 'natural': 'natural flow', 'oscuridad': 'dark moody gothic atmosphere',
+        'paz': 'serene and peaceful vibe', 'fuerza': 'powerful and aggressive energy', 'elegancia': 'elegant and sophisticated style',
+        'misterio': 'mysterious aura', 'tristeza': 'melancholic feel', 'libertad': 'sense of freedom',
+        'fuerza, oscuridad': 'powerful energy and dark atmosphere'
     };
+
     let traducido = texto.toLowerCase().trim();
     for (const [es, en] of Object.entries(diccionario)) {
         const regex = new RegExp(`\\b${es}\\b`, 'g');
@@ -66,159 +95,314 @@ function traducirTerminos(texto) {
 }
 
 // ==========================================
-// 4. SISTEMA DE FIDELIZACIÓN (STATUS)
+// 4. LÓGICA DE PRESUPUESTO DINÁMICA
 // ==========================================
-const obtenerStatus = (pts) => {
-    if (pts >= 3000) return { n: '👑 ＢＬＡＣＫ ＬＡＢＥＬ', d: '30%', c: '⚫', icon: '🏆' };
-    if (pts >= 1500) return { n: '🐉 ＤＲＡＧＯ́Ｎ ＯＲＯ', d: '20%', c: '🟡', icon: '🥇' };
-    if (pts >= 500) return { n: '🐺 ＬＯＢＯ ＰＬＡＴＡ', d: '10%', c: '⚪', icon: '🥈' };
-    return { n: '🐍 ＳＥＲＰＩＥＮＴＥ', d: '0%', c: '🟢', icon: '🎗' };
-};
+function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
+    const cms = parseInt(tamanoStr.replace(/\D/g, '')) || 0;
+    const zonaLow = zona.toLowerCase();
+    const estiloLow = (estilo || "").toLowerCase();
+    let estimado = "";
+
+    if (cms <= 5) estimado = "30€ (Tarifa Mini)";
+    else if (cms <= 10) estimado = "65€ - 85€ (Mediano)";
+    else if (cms <= 14) estimado = "90€ - 110€ (Grande)";
+    else if (cms <= 20) estimado = "120€ - 200€ (Maxi)";
+    else return "A valorar por el tatuador (Pieza XL / Sesión)";
+
+    let pluses = [];
+    if (estiloLow.includes("realismo")) pluses.push("Complejidad de Estilo (Realismo)");
+    else if (estiloLow.includes("lettering")) pluses.push("Detalle de Caligrafía (Lettering)");
+
+    const zonasCriticas = ['costillas', 'cuello', 'mano', 'rodilla', 'esternon', 'cara', 'pies', 'columna', 'codo', 'tobillo', 'axila'];
+    if (zonasCriticas.some(z => zonaLow.includes(z))) pluses.push("Dificultad de Zona Anatómica");
+
+    if (tieneFoto) pluses.push("Carga de detalle analizada en referencia 🖼️");
+    else pluses.push("Sin referencia visual (Sujeto a cambios)");
+
+    let base = `Estimado base: ${estimado}`;
+    if (pluses.length > 0) base += `\n⚠️ FACTORES DE AJUSTE:\n└ ${pluses.join("\n└ ")}`;
+    
+    base += `\n\n📢 **AVISO:** Este presupuesto ha sido generado automáticamente por un robot con fines puramente orientativos. El precio real y definitivo será estipulado únicamente por el tatuador tras revisar personalmente el diseño final.`;
+    
+    return base;
+}
 
 // ==========================================
-// 5. ESCENAS E INTERACTIVIDAD
+// 5. MENÚ PRINCIPAL (BOTONES DINÁMICOS)
+// ==========================================
+function irAlMenuPrincipal(ctx) {
+    if (db.mantenimiento && ctx.from.id.toString() !== MI_ID.toString()) {
+        return ctx.reply('🛠️ **MODO MANTENIMIENTO**\n\nEstamos mejorando el bot para ti. Volvemos en unos minutos.');
+    }
+
+    const uid = ctx.from.id;
+    const pts = db.puntos[uid] || 0;
+    
+    let botones = [
+        ['🔥 Hablar con el Tatuador', '💉 Minar Tinta'],
+        ['🏷️ Promociones', '💎 Club de Afiliados'],
+        ['💡 Consultar Ideas', '🤖 IA: ¿Qué me tatuo?'],
+        ['👥 Mis Referidos', '🧼 Cuidados'],
+        ['🎁 Sorteos']
+    ];
+
+    if (uid.toString() === MI_ID.toString()) {
+        botones.push(['📊 Panel de Control']);
+    }
+
+    return ctx.reply(`✨ S P I C Y  I N K ✨\n━━━━━━━━━━━━━━━━━━━━\n👤 **Tu ID:** \`${uid}\`\n💎 **Puntos:** \`${pts} pts\`\n━━━━━━━━━━━━━━━━━━━━\nSelecciona una opción:`,
+        Markup.keyboard(botones).resize()
+    );
+}
+
+// ==========================================
+// 6. ESCENAS (NUEVAS ESCENAS ADMIN AÑADIDAS)
 // ==========================================
 
-// --- MINERÍA DE TINTA ---
+const couponScene = new Scenes.WizardScene('coupon-wizard',
+    (ctx) => { ctx.reply('🎟️ **GENERADOR DE CUPONES**\nEscribe el código del cupón (ej: PROMO20):'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.code = ctx.message.text.toUpperCase(); ctx.reply('¿Cuántos puntos otorga este cupón?'); return ctx.wizard.next(); },
+    (ctx) => { 
+        db.cupones[ctx.wizard.state.code] = parseInt(ctx.message.text); 
+        guardar();
+        ctx.reply(`✅ Cupón \`${ctx.wizard.state.code}\` creado con valor de ${ctx.message.text} pts.`);
+        return ctx.scene.leave();
+    }
+);
+
+const broadcastScene = new Scenes.WizardScene('broadcast-wizard',
+    (ctx) => { ctx.reply('📢 **PROGRAMADOR DE MENSAJES**\nEscribe el mensaje que quieres enviar a TODOS los usuarios:'); return ctx.wizard.next(); },
+    async (ctx) => {
+        const msg = ctx.message.text;
+        const ids = Object.keys(db.puntos);
+        ctx.reply(`Iniciando envío a ${ids.length} usuarios...`);
+        for (const id of ids) {
+            try { await ctx.telegram.sendMessage(id, `📢 **AVISO IMPORTANTE:**\n\n${msg}`); } catch(e){}
+        }
+        ctx.reply('✅ Difusión completada.');
+        return ctx.scene.leave();
+    }
+);
+
+const reminderScene = new Scenes.WizardScene('reminder-wizard',
+    (ctx) => { ctx.reply('⏰ **RECORDATORIO DE CITA**\nIntroduce el ID del usuario:'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.uid = ctx.message.text; ctx.reply('Escribe la fecha y hora (ej: Mañana a las 10:00):'); return ctx.wizard.next(); },
+    async (ctx) => {
+        try {
+            await ctx.telegram.sendMessage(ctx.wizard.state.uid, `⏰ **RECORDATORIO DE CITA**\n━━━━━━━━━━━━━━━━━━━━\nHola! Te recordamos tu cita para tatuarte:\n📅 **${ctx.message.text}**\n\n¡Te esperamos en el estudio! 💉`);
+            ctx.reply('✅ Recordatorio enviado con éxito.');
+        } catch(e) { ctx.reply('❌ Error al enviar. ¿El ID es correcto?'); }
+        return ctx.scene.leave();
+    }
+);
+
 const mineScene = new Scenes.BaseScene('mine-scene');
 mineScene.enter((ctx) => {
-    ctx.reply(`💉 <b>ＭＩＮＥＲＩ́Ａ ＤＥ ＴＩＮＴＡ</b>\n━━━━━━━━━━━━━━━━━━━━\n🔋 Estado: <code>${db.clics[ctx.from.id] || 0} / 1000 ml</code>\n🎁 <b>PREMIO:</b> TATTOO 20€\n\n<i>Pulsa frenéticamente para inyectar:</i>`,
-        { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('💉 INYECTAR TINTA', 'minar_pt')], [Markup.button.callback('⬅️ SALIR', 'volver_menu')]]) });
+    const uid = ctx.from.id;
+    ctx.reply(`💉 M I N E R Í A  D E  T I N T A\n━━━━━━━━━━━━━━━━━━━━\nEstado: ${db.clics[uid] || 0} / 1000 ml\n🎁 PREMIO: TATTOO 20€\n\nPulsa para recolectar:`,
+        Markup.inlineKeyboard([[Markup.button.callback('💉 INYECTAR TINTA', 'minar_punto')], [Markup.button.callback('⬅️ SALIR', 'volver_menu')]]));
 });
-mineScene.action('minar_pt', async (ctx) => {
-    const uid = ctx.from.id; db.clics[uid] = (db.clics[uid] || 0) + 1; guardar();
-    if (db.clics[uid] >= 1000) { await ctx.editMessageText('🎉 <b>¡TANQUE COMPLETADO!</b>\nHas ganado tu tatuaje por 20€. Captura esto.', { parse_mode: 'HTML' }); db.clics[uid] = 0; return; }
-    try { await ctx.editMessageText(`💉 <b>ＴＩＮＴＡ:</b> <code>${db.clics[uid]} / 1000 ml</code>`, { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.callback('💉 INYECTAR TINTA', 'minar_pt')], [Markup.button.callback('⬅️ SALIR', 'volver_menu')]]) }); } catch(e){}
+mineScene.action('minar_punto', async (ctx) => {
+    const uid = ctx.from.id;
+    db.clics[uid] = (db.clics[uid] || 0) + 1;
+    guardar();
+    if (db.clics[uid] >= 1000) {
+        await ctx.editMessageText('🎉 TANQUE COMPLETADO 🎉\nHas ganado tu tatuaje por 20€. Haz captura para canjear.');
+        db.clics[uid] = 0; guardar(); return;
+    }
+    try { await ctx.editMessageText(`💉 M I N E R Í A  D E  T I N T A\n━━━━━━━━━━━━━━━━━━━━\nEstado: ${db.clics[uid]} / 1000 ml\n🎁 PREMIO: TATTOO 20€`,
+        Markup.inlineKeyboard([[Markup.button.callback('💉 INYECTAR TINTA', 'minar_punto')], [Markup.button.callback('⬅️ SALIR', 'volver_menu')]])); } catch (e) {}
     return ctx.answerCbQuery();
 });
-mineScene.action('volver_menu', (ctx) => { ctx.scene.leave(); return irAlMenuPrincipal(ctx); });
+mineScene.action('volver_menu', async (ctx) => { await ctx.scene.leave(); return irAlMenuPrincipal(ctx); });
 
-// --- IA CREATOR (CON MODOS) ---
-const iaWizard = new Scenes.WizardScene('ia-wizard',
+const tattooScene = new Scenes.WizardScene('tattoo-wizard',
+    (ctx) => { ctx.reply('⚠️ FORMULARIO DE CITA\n━━━━━━━━━━━━━━━━━━━━\nEscribe tu Nombre Completo:'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('🔞 ¿Edad?', Markup.keyboard([['+18 años', '+16 años'], ['Menor de 16']]).oneTime().resize()); return ctx.wizard.next(); },
     (ctx) => {
-        ctx.wizard.state.ai = {};
-        ctx.reply('🎨 <b>ＭＯＤＯ ＤＥ ＤＩＳＥＮ̃Ｏ</b>\nSelecciona el alma de tu tatuaje:', 
-            { parse_mode: 'HTML', ...Markup.keyboard([['⚡ Flash Tattoo', '🚬 Estilo Chicano'], ['✨ Blackwork', '🎨 Realismo'], ['⬅️ VOLVER']]).oneTime().resize() });
+        if (ctx.message.text === 'Menor de 16') { ctx.reply('❌ Mínimo 16 años.'); return ctx.scene.leave(); }
+        ctx.wizard.state.f.edad = ctx.message.text;
+        ctx.reply('📍 Selecciona la zona del cuerpo:', 
+            Markup.keyboard([
+                ['Antebrazo', 'Bíceps', 'Hombro'],
+                ['Costillas', 'Esternón', 'Espalda'],
+                ['Muslo', 'Gemelo', 'Tobillo'],
+                ['Mano', 'Cuello', 'Muñeca'],
+                ['Otro']
+            ]).oneTime().resize()); 
+        return ctx.wizard.next();
+    },
+    (ctx) => { 
+        ctx.wizard.state.f.zona = ctx.message.text; 
+        ctx.reply('📏 Tamaño aproximado en cm:', Markup.removeKeyboard()); 
+        return ctx.wizard.next(); 
+    },
+    (ctx) => { 
+        ctx.wizard.state.f.tamano = ctx.message.text; 
+        ctx.reply('🎨 Selecciona el Estilo técnico:', 
+            Markup.inlineKeyboard([
+                [Markup.button.callback('Fine Line', 'estilo_Fine Line'), Markup.button.callback('Realismo', 'estilo_Realismo')],
+                [Markup.button.callback('Lettering', 'estilo_Lettering'), Markup.button.callback('Blackwork', 'estilo_Blackwork')],
+                [Markup.button.callback('Otro', 'estilo_Otro')]
+            ]));
         return ctx.wizard.next();
     },
     (ctx) => {
-        if (ctx.message.text === '⬅️ VOLVER') return irAlMenuPrincipal(ctx);
+        if (ctx.callbackQuery) {
+            ctx.wizard.state.f.estilo = ctx.callbackQuery.data.replace('estilo_', '');
+            ctx.answerCbQuery();
+            ctx.reply('🏥 Alergias o medicación:');
+            return ctx.wizard.next();
+        }
+        return ctx.reply('⚠️ Usa los botones.');
+    },
+    (ctx) => { 
+        ctx.wizard.state.f.salud = ctx.message.text; 
+        ctx.reply('🖼️ REFERENCIA VISUAL (Recomendado)\n━━━━━━━━━━━━━━━━━━━━\nEnvía una foto de tu diseño o pulsa el botón:', 
+            Markup.inlineKeyboard([[Markup.button.callback('❌ No tengo diseño', 'no_foto')]]));
+        return ctx.wizard.next(); 
+    },
+    async (ctx) => {
+        if (ctx.message && ctx.message.photo) {
+            ctx.wizard.state.f.foto = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+            ctx.wizard.state.f.tieneFoto = true;
+        } else if (ctx.callbackQuery && ctx.callbackQuery.data === 'no_foto') {
+            ctx.wizard.state.f.tieneFoto = false;
+            ctx.answerCbQuery();
+        } else return ctx.reply('⚠️ Envía una foto o pulsa el botón.');
+        ctx.reply('📲 WhatsApp (con prefijo, ej: 34600000000):'); return ctx.wizard.next();
+    },
+    async (ctx) => {
+        const d = ctx.wizard.state.f;
+        d.telefono = ctx.message.text.replace(/\s+/g, '').replace('+', '');
+        db.fichas[ctx.from.id] = d;
+        guardar();
+        const estimacion = calcularPresupuesto(d.tamano, d.zona, d.estilo, d.tieneFoto);
+        
+        const fichaAdmin = `🔔 **NUEVA SOLICITUD**\n━━━━━━━━━━━━━━━━━━━━\n👤 **ID Usuario:** \`${ctx.from.id}\`\n👤 **Nombre:** ${d.nombre}\n🔞 **Edad:** ${d.edad}\n📍 **Zona:** ${d.zona}\n📏 **Tamaño:** ${d.tamano}\n🎨 **Estilo:** ${d.estilo}\n🏥 **Salud:** ${d.salud}\n📞 **WhatsApp:** +${d.telefono}\n\n💰 **${estimacion.split('\n')[0]}**`;
+        
+        await ctx.telegram.sendMessage(MI_ID, fichaAdmin, {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard([[Markup.button.url('📲 Hablar por WhatsApp', `https://wa.me/${d.telefono}`)]])
+        });
+        if (d.foto) await ctx.telegram.sendPhoto(MI_ID, d.foto, { caption: `🖼️ Referencia de ${d.nombre}` });
+
+        await ctx.reply(`✅ SOLICITUD ENVIADA\n━━━━━━━━━━━━━━━━━━━━\n${estimacion}`);
+        return ctx.scene.leave();
+    }
+);
+
+const iaScene = new Scenes.WizardScene('ia-wizard',
+    (ctx) => {
+        ctx.wizard.state.ai = {};
+        ctx.reply('🎨 Selecciona el estilo de tatuaje que buscas:', 
+            Markup.keyboard([
+                ['⚡ Flash Tattoo', '🚬 Estilo Chicano'],
+                ['✨ Personalizado', '⬅️ Volver al Menú']
+            ]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        if (ctx.message.text === '⬅️ Volver al Menú') {
+            ctx.scene.leave();
+            return irAlMenuPrincipal(ctx);
+        }
         ctx.wizard.state.ai.modo = ctx.message.text;
-        ctx.reply('🤖 <b>Describe tu idea:</b>\n(Ej: Un lobo aullando en el bosque con nubes)');
+        ctx.reply('🤖 **GENERADOR PROFESIONAL (1/10)**\n¿Cuál es el elemento principal? (Ej: Un lobo, una calavera...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.elemento = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(2/10)** ¿Qué está haciendo o en qué postura está? (Ej: Aullando, saltando...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.accion = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(3/10)** ¿Qué hay de fondo? (Ej: Bosque, nubes, mandalas...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.fondo = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(4/10)** ¿Cómo es la iluminación? (Ej: Luz dramática, sombras suaves...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.luz = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(5/10)** ¿Nivel de detalle? (Ej: Hiperrealista, minimalista...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.detalle = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(6/10)** ¿Gama de colores?', 
+            Markup.keyboard([['Blanco y Negro', 'Color'], ['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.color = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(7/10)** ¿Algún elemento extra? (Ej: Rosas, dagas, fuego...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.extra = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(8/10)** ¿Tipo de línea? (Ej: Línea fina, línea gruesa...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.lineas = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(9/10)** ¿Composición/Forma? (Ej: Vertical, circular...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.forma = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(10/10)** ¿Qué sensación debe transmitir? (Ej: Oscuridad, paz...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
     async (ctx) => {
-        db.stats.prompts++; guardar();
-        const p = `Masterpiece tattoo design, style: ${ctx.wizard.state.ai.modo}, ${traducirTerminos(ctx.message.text)}, white background, ultra-detailed, 8k resolution.`;
-        await ctx.reply(`🧠 <b>ＰＲＯＭＰＴ ＧＥＮＥＲＡＤＯ</b>\n━━━━━━━━━━━━━━━━━━━━\n<code>${p}</code>`, { 
+        const ai = ctx.wizard.state.ai;
+        ai.sentimiento = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        const f = db.fichas[ctx.from.id] || { zona: "body", estilo: "artistic" };
+        const p = (val) => (val === 'none' ? '' : traducirTerminos(val));
+        const prompt = `Professional tattoo design in ${ai.modo} style, featuring ${p(ai.elemento)}, ${p(ai.accion)}. Background: ${p(ai.fondo)}. Lighting: ${p(ai.luz)}. Detail: ${p(ai.detalle)}. Palette: ${p(ai.color)}. Elements: ${p(ai.extra)}. Linework: ${p(ai.lineas)}. Composition: ${p(ai.forma)}. Mood: ${p(ai.sentimiento)}. Optimized for ${traducirTerminos(f.zona)}. 8k, high contrast, clean white background, master quality.`;
+        const encodedPrompt = encodeURIComponent(`Genera una imagen de tatuaje con este prompt en inglés: ${prompt}`);
+        const geminiUrl = `https://gemini.google.com/app?q=${encodedPrompt}`;
+        await ctx.reply(`🧠 **PROMPT PROFESIONAL GENERADO**\n━━━━━━━━━━━━━━━━━━━━\n<code>${prompt}</code>`, {
             parse_mode: 'HTML',
-            ...Markup.inlineKeyboard([[Markup.button.url('🎨 GENERAR EN GEMINI', `https://gemini.google.com/app?q=${encodeURIComponent(p)}`)]])
+            ...Markup.removeKeyboard(),
+            ...Markup.inlineKeyboard([
+                [Markup.button.url('🎨 GENERAR EN GOOGLE GEMINI', geminiUrl)],
+                [Markup.button.callback('🔄 Otra idea', 'nueva_ia')]
+            ])
         });
         return ctx.scene.leave();
     }
 );
 
-// --- CITA WIZARD (FORMULARIO LIMPIO) ---
-const tattooWizard = new Scenes.WizardScene('tattoo-wizard',
-    (ctx) => { ctx.reply('🖋️ <b>ＮＵＥＶＡ ＣＩＴＡ</b>\n━━━━━━━━━━━━━━━━━━━━\n¿Nombre completo?'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.n = ctx.message.text; ctx.reply('🔞 ¿Edad? (+18 / +16)'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.e = ctx.message.text; ctx.reply('📍 Zona del cuerpo y cm aprox:'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.z = ctx.message.text; ctx.reply('🎨 Estilo (Fine Line, Realismo...):'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.s = ctx.message.text; ctx.reply('🏥 Alergias o salud:'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.h = ctx.message.text; ctx.reply('🖼️ Envía foto de referencia:', Markup.inlineKeyboard([[Markup.button.callback('❌ Sin foto', 'no_foto')]])); return ctx.wizard.next(); },
-    async (ctx) => {
-        if (ctx.message?.photo) { ctx.wizard.state.f.foto = ctx.message.photo[ctx.message.photo.length - 1].file_id; }
-        ctx.reply('📲 WhatsApp (ej: 34600000000):'); return ctx.wizard.next();
+const ideasScene = new Scenes.WizardScene('ideas-scene',
+    (ctx) => {
+        ctx.reply('💡 Selecciona una zona:', Markup.keyboard([['Antebrazo', 'Bíceps'], ['Costillas', 'Espalda'], ['⬅️ Volver']]).resize());
+        return ctx.wizard.next();
     },
-    async (ctx) => {
-        db.stats.citas++;
-        const d = ctx.wizard.state.f; d.w = ctx.message.text.replace(/\D/g, ''); guardar();
-        const msg = `🆕 <b>ＣＩＴＡ ＲＥＧＩＳＴＲＡＤＡ</b>\n━━━━━━━━━━━━━━━━━━━━\n👤 <b>Nombre:</b> ${d.n}\n📍 <b>Zona:</b> ${d.z}\n🎨 <b>Estilo:</b> ${d.s}\n📞 <b>WhatsApp:</b> +${d.w}\n🆔 <b>ID:</b> <code>${ctx.from.id}</code>`;
-        await bot.telegram.sendMessage(MI_ID, msg, { parse_mode: 'HTML', ...Markup.inlineKeyboard([[Markup.button.url('📲 HABLAR', `https://wa.me/${d.w}`)]]) });
-        if (d.foto) await bot.telegram.sendPhoto(MI_ID, d.foto);
-        await ctx.reply('✅ <b>SOLICITUD ENVIADA</b>\nEl tatuador te escribirá pronto por WhatsApp.');
-        return ctx.scene.leave();
+    (ctx) => {
+        const msg = ctx.message.text;
+        if (msg.includes('Volver')) { ctx.scene.leave(); return irAlMenuPrincipal(ctx); }
+        ctx.reply("💡 Consejo: " + msg + " es una zona excelente para este tipo de diseños.");
+        ctx.scene.leave(); return irAlMenuPrincipal(ctx);
     }
 );
 
-// --- RESEÑAS ---
-const feedbackScene = new Scenes.BaseScene('feedback-scene');
-feedbackScene.enter((ctx) => ctx.reply('⭐ <b>ＤＥＪＡ ＴＵ ＲＥＳＥＮ̃Ａ</b>\nCuéntanos tu experiencia y gana 10 InkPoints:'));
-feedbackScene.on('text', (ctx) => {
-    db.reseñas.push({ u: ctx.from.first_name, t: ctx.message.text });
-    db.puntos[ctx.from.id] = (db.puntos[ctx.from.id] || 0) + 10; guardar();
-    ctx.reply('🙏 <b>¡Gracias!</b> Se han sumado 10 pts a tu cuenta.');
-    bot.telegram.sendMessage(MI_ID, `⭐ <b>NUEVA RESEÑA:</b>\n${ctx.message.text}`);
-    return ctx.scene.leave();
-});
-
 // ==========================================
-// 6. MENÚ PRINCIPAL Y NAVEGACIÓN
+// 7. MIDDLEWARES Y REGISTRO
 // ==========================================
-function irAlMenuPrincipal(ctx) {
-    if (!db.usuarios.includes(ctx.from.id)) { db.usuarios.push(ctx.from.id); guardar(); }
-    return ctx.reply('✨ <b>ＳＰＩＣＹ  ＩＮＫ  ＳＴＵＤＩＯ</b> ✨\n━━━━━━━━━━━━━━━━━━━━\n<i>Gestión de citas y eventos exclusivos.</i>',
-        { parse_mode: 'HTML', ...Markup.keyboard([
-            ['🔥 HABLAR CON TATUADOR', '🤖 IA: ¿QUÉ ME TATÚO?'],
-            ['💎 MI STATUS / CLUB', '🎁 PROMOCIONES'],
-            ['⚙️ MÁS OPCIONES']
-        ]).resize() }
-    );
-}
-
-bot.hears('⚙️ MÁS OPCIONES', (ctx) => {
-    ctx.reply('🛠️ <b>ＨＥＲＲＡＭＩＥＮＴＡＳ ＥＸＴＲＡ</b>', { parse_mode: 'HTML', ...Markup.keyboard([
-        ['👥 MIS REFERIDOS', '💉 MINAR TINTA'],
-        ['📚 ENCICLOPEDIA', '🧼 CUIDADOS'],
-        ['⭐ DEJAR RESEÑA', '⬅️ VOLVER']
-    ]).resize() });
-});
-
-bot.hears('💎 MI STATUS / CLUB', (ctx) => {
-    const pts = db.puntos[ctx.from.id] || 0;
-    const s = obtenerStatus(pts);
-    ctx.reply(`${s.icon} <b>ＥＳＴＡＤＯ ＤＥ ＣＬＩＥＮＴＥ</b>\n━━━━━━━━━━━━━━━━━━━━\n🏆 Rango: <b>${s.n}</b>\n✨ Puntos: <code>${pts} pts</code>\n💰 DTO Permanente: <b>${s.d}</b>\n\n<i>¡Cada sesión te suma puntos para subir de nivel!</i>`, { parse_mode: 'HTML' });
-});
-
-bot.hears('🎁 PROMOCIONES', (ctx) => {
-    ctx.reply('🔥 <b>ＰＲＯＭＯＳ ＥＸＣＬＵＳＩＶＡＳ</b>\nÚnete para enterarte de cancelaciones y 2x1:', 
-        Markup.inlineKeyboard([[Markup.button.url('🚀 UNIRME AL CANAL', 'https://t.me/+rnjk7xiUjFhlMzdk')]]));
-});
-
-bot.hears('📚 ENCICLOPEDIA', (ctx) => {
-    ctx.reply('📚 <b>ＧＵＩ́Ａ ＤＥ ＥＳＴＩＬＯＳ</b>\nSelecciona para educar tu piel:', Markup.inlineKeyboard([
-        [Markup.button.callback('🚬 Chicano', 'info_chi'), Markup.button.callback('🐍 Blackwork', 'info_bw')],
-        [Markup.button.callback('🌸 Fine Line', 'info_fl'), Markup.button.callback('🎨 Realismo', 'info_re')]
-    ]));
-});
-
-// ==========================================
-// 7. ADMINISTRACIÓN (ELITE)
-// ==========================================
-bot.command('puntos', (ctx) => {
-    if (ctx.from.id.toString() !== MI_ID.toString()) return;
-    const [_, uid, cant] = ctx.message.text.split(' ');
-    db.puntos[uid] = (db.puntos[uid] || 0) + parseInt(cant); guardar();
-    ctx.reply(`✅ <b>${cant} pts</b> sumados al usuario <code>${uid}</code>`, { parse_mode: 'HTML' });
-    bot.telegram.sendMessage(uid, `💎 ¡Felicidades! Se han sumado <b>${cant} puntos</b> a tu perfil.`, { parse_mode: 'HTML' });
-});
-
-bot.command('anuncio', async (ctx) => {
-    if (ctx.from.id.toString() !== MI_ID.toString()) return;
-    const msg = ctx.message.text.split(' ').slice(1).join(' ');
-    db.usuarios.forEach(id => bot.telegram.sendMessage(id, `📢 <b>ＡＶＩＳＯ ＩＭＰＯＲＴＡＮＴＥ</b>\n━━━━━━━━━━━━━━━━━━━━\n\n${msg}`, { parse_mode: 'HTML' }).catch(e => {}));
-    ctx.reply('📢 Anuncio enviado.');
-});
-
-bot.command('stats', (ctx) => {
-    if (ctx.from.id.toString() !== MI_ID.toString()) return;
-    ctx.reply(`📊 <b>ＳＴＡＴＳ ＤＥＬ ＮＥＧＯＣＩＯ</b>\n━━━━━━━━━━━━━━━━━━━━\n👥 Usuarios: ${db.usuarios.length}\n💉 Citas: ${db.stats.citas}\n🤖 Prompts IA: ${db.stats.prompts}`, { parse_mode: 'HTML' });
-});
-
-// ==========================================
-// 8. MIDDLEWARES Y LANZAMIENTO
-// ==========================================
-const stage = new Scenes.Stage([tattooWizard, iaWizard, mineScene, feedbackScene]);
+const stage = new Scenes.Stage([tattooScene, mineScene, ideasScene, iaScene, couponScene, broadcastScene, reminderScene]);
 bot.use(session());
 bot.use(stage.middleware());
 
@@ -228,22 +412,139 @@ bot.start((ctx) => {
         const inviterId = text.split('=')[1];
         if (inviterId != ctx.from.id && !db.invitados[ctx.from.id]) {
             db.invitados[ctx.from.id] = inviterId;
-            db.referidos[inviterId] = (db.referidos[inviterId] || 0) + 1; guardar();
-            bot.telegram.sendMessage(inviterId, `👥 ¡Alguien se ha unido con tu enlace!`);
+            db.referidos[inviterId] = (db.referidos[inviterId] || 0) + 1;
+            guardar();
+            ctx.telegram.sendMessage(inviterId, `👥 ¡Alguien se ha unido con tu enlace!`);
         }
     }
     return irAlMenuPrincipal(ctx);
 });
 
-bot.hears('🔥 HABLAR CON TATUADOR', (ctx) => ctx.scene.enter('tattoo-wizard'));
-bot.hears('🤖 IA: ¿QUÉ ME TATÚO?', (ctx) => ctx.scene.enter('ia-wizard'));
-bot.hears('💉 MINAR TINTA', (ctx) => ctx.scene.enter('mine-scene'));
-bot.hears('⭐ DEJAR RESEÑA', (ctx) => ctx.scene.enter('feedback-scene'));
-bot.hears('🧼 CUIDADOS', (ctx) => ctx.reply('🧼 <b>ＰＲＯＴＯＣＯＬＯ ＤＥ ＣＵＲＡＣＩＯ́Ｎ</b>\n1. Jabón neutro 3 veces/día.\n2. Secar a toquecitos.\n3. Crema fina Spicy Balm.\n4. Cero sol y piscina.', { parse_mode: 'HTML' }));
-bot.hears('👥 MIS REFERIDOS', (ctx) => {
-    const link = `https://t.me/${ctx.botInfo.username}?start=${ctx.from.id}`;
-    ctx.reply(`👥 <b>ＳＩＳＴＥＭＡ ＤＥ ＳＯＣＩＯＳ</b>\n━━━━━━━━━━━━━━━━━━━━\nComparte tu enlace y gana puntos:\n\n🔗 <code>${link}</code>`, { parse_mode: 'HTML' });
+// --- LÓGICA DE PROMOCIONES ---
+bot.hears('🏷️ Promociones', (ctx) => {
+    return ctx.reply('🏷️ **CANAL DE PROMOCIONES**\n━━━━━━━━━━━━━━━━━━━━\nÚnete para recibir ofertas flash y descuentos mensuales.', 
+        Markup.inlineKeyboard([[Markup.button.url('📲 Entrar al Grupo', 'https://t.me/+rnjk7xiUjFhlMzdk')]]));
 });
-bot.hears('⬅️ VOLVER', (ctx) => irAlMenuPrincipal(ctx));
 
-bot.launch().then(() => console.log('🔥 SPICY BOT ELITE READY'));
+// --- LÓGICA DE AFILIADOS (PUNTOS) ---
+bot.hears('💎 Club de Afiliados', (ctx) => {
+    const uid = ctx.from.id;
+    const pts = db.puntos[uid] || 0;
+    const texto = `💎 **SISTEMA DE PUNTOS VIP**\n━━━━━━━━━━━━━━━━━━━━\nPor cada tatuaje realizado sumas puntos para premios.\n\n💰 **Tus puntos actuales:** \`${pts} Puntos\`\n\n🏆 **TABLA DE PREMIOS:**\n• 5 pts: Crema de cuidado gratis\n• 10 pts: 25% DTO en próximo tattoo\n• 20 pts: Tattoo pequeño GRATIS\n\n*Los puntos se asignan en el estudio al terminar tu sesión.*`;
+    return ctx.reply(texto, { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback('🎟️ CANJEAR CUPÓN', 'canjear_cupon_usuario')]]) });
+});
+
+bot.action('canjear_cupon_usuario', (ctx) => {
+    ctx.answerCbQuery();
+    return ctx.reply('Escribe el código de tu cupón:');
+});
+
+bot.on('text', (ctx, next) => {
+    const code = ctx.message.text.toUpperCase();
+    if (db.cupones && db.cupones[code]) {
+        const val = db.cupones[code];
+        db.puntos[ctx.from.id] = (db.puntos[ctx.from.id] || 0) + val;
+        delete db.cupones[code]; 
+        guardar();
+        return ctx.reply(`🎉 ¡Cupón aceptado! Has recibido ${val} puntos.`);
+    }
+    return next();
+});
+
+// --- COMANDO PARA QUE EL TATUADOR ASIGNE PUNTOS ---
+bot.command('canjear', (ctx) => {
+    if (ctx.from.id.toString() !== MI_ID.toString()) return;
+    const args = ctx.message.text.split(' ');
+    if (args.length < 3) return ctx.reply('❌ Uso: /canjear ID PUNTOS');
+    const targetId = args[1];
+    const ptsToAdd = parseInt(args[2]);
+    db.puntos[targetId] = (db.puntos[targetId] || 0) + ptsToAdd;
+    guardar();
+    ctx.reply(`✅ Puntos actualizados para el usuario ${targetId}.`);
+    ctx.telegram.sendMessage(targetId, `🎉 ¡Has recibido ${ptsToAdd} puntos en el Club de Afiliados! Consulta tus puntos en el menú.`);
+});
+
+// --- PANEL DE CONTROL (ADMIN ACTUALIZADO) ---
+bot.hears('📊 Panel de Control', (ctx) => {
+    if (ctx.from.id.toString() !== MI_ID.toString()) return;
+    return ctx.reply('🛠️ **PANEL DE ADMINISTRACIÓN**', 
+        Markup.inlineKeyboard([
+            [Markup.button.callback('👥 Lista Usuarios', 'admin_usuarios'), Markup.button.callback('🎟️ Crear Cupón', 'admin_cupon')],
+            [Markup.button.callback('📢 Difusión Global', 'admin_broadcast'), Markup.button.callback('⏰ Recordatorio', 'admin_reminder')],
+            [Markup.button.callback(db.mantenimiento ? '🟢 Activar Bot' : '🔴 Mantenimiento', 'admin_mantenimiento')],
+            [Markup.button.callback('📜 Consentimiento', 'admin_legal'), Markup.button.callback('⬅️ Volver', 'admin_volver')]
+        ]));
+});
+
+bot.action('admin_usuarios', (ctx) => {
+    const ids = Object.keys(db.puntos);
+    if (ids.length === 0) return ctx.reply("Sin usuarios.");
+    let lista = "👥 **LISTA:**\n";
+    ids.forEach(id => { lista += `• ${db.fichas[id]?.nombre || "Sin nombre"} | ID: \`${id}\` | Pts: ${db.puntos[id] || 0}\n`; });
+    return ctx.editMessageText(lista, { parse_mode: 'Markdown', ...Markup.inlineKeyboard([[Markup.button.callback('⬅️ Volver', 'admin_panel_back')]]) });
+});
+
+bot.action('admin_cupon', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('coupon-wizard'); });
+bot.action('admin_broadcast', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('broadcast-wizard'); });
+bot.action('admin_reminder', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('reminder-wizard'); });
+
+bot.action('admin_mantenimiento', (ctx) => {
+    db.mantenimiento = !db.mantenimiento;
+    guardar();
+    ctx.answerCbQuery(`Modo mantenimiento: ${db.mantenimiento ? 'ON' : 'OFF'}`);
+    return ctx.editMessageText(`🛠️ **PANEL DE ADMINISTRACIÓN**\nEstado: ${db.mantenimiento ? '🔴 MANTENIMIENTO ACTIVO' : '🟢 BOT OPERATIVO'}`, 
+        Markup.inlineKeyboard([
+            [Markup.button.callback('👥 Lista Usuarios', 'admin_usuarios'), Markup.button.callback('🎟️ Crear Cupón', 'admin_cupon')],
+            [Markup.button.callback('📢 Difusión Global', 'admin_broadcast'), Markup.button.callback('⏰ Recordatorio', 'admin_reminder')],
+            [Markup.button.callback(db.mantenimiento ? '🟢 Activar Bot' : '🔴 Mantenimiento', 'admin_mantenimiento')],
+            [Markup.button.callback('📜 Consentimiento', 'admin_legal'), Markup.button.callback('⬅️ Volver', 'admin_volver')]
+        ]));
+});
+
+bot.action('admin_legal', (ctx) => {
+    return ctx.reply('📜 **GESTOR DE CONSENTIMIENTO**\n━━━━━━━━━━━━━━━━━━━━\nEnvía este mensaje al cliente para que lo firme antes de empezar:\n\n"Yo, el cliente, confirmo que soy mayor de edad (o tengo permiso), no he consumido alcohol/drogas y acepto los riesgos del tatuaje..."');
+});
+
+bot.action('admin_panel_back', (ctx) => { ctx.answerCbQuery(); return irAlMenuPrincipal(ctx); });
+bot.action('admin_volver', (ctx) => { ctx.answerCbQuery(); return irAlMenuPrincipal(ctx); });
+
+bot.hears('👥 Mis Referidos', (ctx) => {
+    const uid = ctx.from.id;
+    const count = db.referidos[uid] || 0;
+    const conf = db.confirmados[uid] || 0;
+    const link = `https://t.me/${ctx.botInfo.username}?start=${uid}`;
+    const textoReferidos = `👥 S I S T E M A  D E  S O C I O S\n━━━━━━━━━━━━━━━━━━━━\n🔗 **Tu enlace:**\n${link}\n\n📊 **Confirmados:** ${conf} / 3\n\nRECOMPENSAS EXCLUSIVAS:\nSi 3 personas se tatúan con tu enlace:\n✅ 100% DTO en Tattoos Pequeños\n✅ 100% DTO en Tattoos Medianos\n✅ 50% DTO en Tattoos Grandes`;
+    return ctx.reply(textoReferidos, Markup.inlineKeyboard([[Markup.button.callback('✅ ¡ME HE TATUADO!', 'confirmar_tattoo')]]));
+});
+
+bot.action('confirmar_tattoo', (ctx) => {
+    const inviterId = db.invitados[ctx.from.id];
+    if (inviterId) {
+        db.confirmados[inviterId] = (db.confirmados[inviterId] || 0) + 1;
+        guardar();
+        ctx.telegram.sendMessage(inviterId, `🎉 ¡Un referido tuyo se ha tatuado! Tu contador ha subido.`);
+        return ctx.answerCbQuery('✅ ¡Gracias por confirmar!', { show_alert: true });
+    }
+    return ctx.answerCbQuery('❌ No te uniste con enlace de referido.');
+});
+
+bot.hears('🤖 IA: ¿Qué me tatuo?', (ctx) => {
+    if (!db.fichas[ctx.from.id]) {
+        return ctx.reply('🤖 **CONSEJO DE IA**\nSe recomienda enviar tu ficha primero para que el diseño se adapte mejor a tu zona del cuerpo y estilo.\n\n¿Quieres rellenarla ahora o continuar directamente?',
+            Markup.inlineKeyboard([[Markup.button.callback('✅ Rellenar Ficha', 'ir_a_formulario')], [Markup.button.callback('🚀 Continuar a la IA', 'continuar_ia')]]));
+    }
+    return ctx.scene.enter('ia-wizard');
+});
+
+bot.action('continuar_ia', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('ia-wizard'); });
+bot.action('nueva_ia', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('ia-wizard'); });
+bot.action('ir_a_formulario', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('tattoo-wizard'); });
+bot.action('volver_ia', (ctx) => { ctx.answerCbQuery(); return ctx.editMessageText('Vuelve cuando quieras.'); });
+
+bot.hears('🔥 Hablar con el Tatuador', (ctx) => ctx.scene.enter('tattoo-wizard'));
+bot.hears('💉 Minar Tinta', (ctx) => ctx.scene.enter('mine-scene'));
+bot.hears('💡 Consultar Ideas', (ctx) => ctx.scene.enter('ideas-scene'));
+bot.hears('🧼 Cuidados', (ctx) => ctx.reply('Jabón neutro y crema 3 veces al día.'));
+bot.hears('🎁 Sorteos', (ctx) => ctx.reply('🎁 **SORTEO ACTIVO (05-10 Febrero 2026)**\n━━━━━━━━━━━━━━━━━━━━\n💰 **PREMIO:** 150€\n🎨 **DISEÑO:** A elegir por el cliente\n\n🔗 **ENLACE:** https://t.me/+bAbJXSaI4rE0YzM0', { parse_mode: 'Markdown' }));
+
+bot.launch().then(() => console.log('🚀 Bot Funcionando'));
