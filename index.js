@@ -366,6 +366,12 @@ const iaScene = new Scenes.WizardScene('ia-wizard',
             Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
         return ctx.wizard.next();
     },
+      (ctx) => {
+        ctx.wizard.state.ai.forma = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(11/11)** ¿Sobre fondo blanco? (Ej: si quieres encima de un pecho, brazo. se puede)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
     async (ctx) => {
         const ai = ctx.wizard.state.ai;
         ai.sentimiento = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
