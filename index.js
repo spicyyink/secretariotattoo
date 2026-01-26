@@ -232,8 +232,11 @@ function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
 function generarCodigoRegalo() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let code = 'GIFT-';
-    for (let i = 0; i < 8; i++) {
-        if (i === 4) code += '-';
+    for (let i = 0; i < 4; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    code += '-';
+    for (let i = 0; i < 4; i++) {
         code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return code;
@@ -242,6 +245,67 @@ function generarCodigoRegalo() {
 // ==========================================
 // 4. ESCENAS (WIZARDS)
 // ==========================================
+
+// --- NUEVA ESCENA DE GESTIÓN DE TARJETAS (ADMIN) ---
+const adminGiftScene = new Scenes.WizardScene('admin-gift-wizard',
+    (ctx) => {
+        ctx.reply('🔍 **BUSCADOR DE TARJETAS**\nIntroduce el CÓDIGO de la tarjeta (ej: GIFT-XXXX-XXXX):', Markup.inlineKeyboard([
+            [Markup.button.callback('❌ Cancelar', 'cancelar')]
+        ]));
+        return ctx.wizard.next();
+    },
+    async (ctx) => {
+        if (ctx.callbackQuery && ctx.callbackQuery.data === 'cancelar') {
+            await ctx.answerCbQuery();
+            ctx.reply('Operación cancelada.');
+            return ctx.scene.leave();
+        }
+
+        const code = ctx.message ? ctx.message.text.trim().toUpperCase() : null;
+        if(!code) return ctx.reply('Introduce texto válido.');
+
+        const card = db.tarjetas_regalo[code];
+
+        if (!card) {
+            ctx.reply('❌ **ERROR:** Código no encontrado en la base de datos.');
+            return ctx.scene.leave();
+        }
+
+        ctx.wizard.state.code = code;
+        const status = card.canjeado ? '🔴 YA CANJEADO' : '🟢 ACTIVO (Válido)';
+        const fechaCompra = new Date(card.fecha).toLocaleDateString('es-ES');
+        
+        const msg = `🎁 **DETALLES DE TARJETA**\n━━━━━━━━━━━━━━━━━━━━\n🆔 **Código:** \`${code}\`\n💰 **Valor:** ${card.amount}€\n👤 **Para:** ${card.para}\n📞 **Comprador:** ${card.phone}\n📅 **Fecha:** ${fechaCompra}\n📝 **Nota:** "${card.msg}"\n━━━━━━━━━━━━━━━━━━━━\n📊 **ESTADO:** ${status}`;
+
+        if (card.canjeado) {
+            await ctx.reply(msg, { parse_mode: 'Markdown' });
+            return ctx.scene.leave();
+        }
+
+        await ctx.reply(msg, { parse_mode: 'Markdown' });
+        await ctx.reply('¿Deseas marcar esta tarjeta como **CANJEADA**?', Markup.inlineKeyboard([
+            [Markup.button.callback('✅ SÍ, CANJEAR AHORA', 'do_redeem')],
+            [Markup.button.callback('❌ NO, SOLO CONSULTAR', 'cancel_redeem')]
+        ]));
+        return ctx.wizard.next();
+    },
+    async (ctx) => {
+        if (!ctx.callbackQuery) return; 
+        const action = ctx.callbackQuery.data;
+
+        if (action === 'do_redeem') {
+            const code = ctx.wizard.state.code;
+            db.tarjetas_regalo[code].canjeado = true;
+            db.tarjetas_regalo[code].fechaCanje = Date.now();
+            guardar();
+            await ctx.editMessageText(`✅ **TARJETA CANJEADA CON ÉXITO**\nEl código ${code} ha quedado anulado.`);
+        } else {
+            await ctx.editMessageText('👋 Consulta finalizada. La tarjeta sigue activa.');
+        }
+        return ctx.scene.leave();
+    }
+);
+// ---------------------------------------------------
 
 const panicoScene = new Scenes.WizardScene('panico-scene',
     (ctx) => {
@@ -326,7 +390,7 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     (ctx) => { ctx.reply('📝 Nombre:'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('📍 Zona:'); return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.f.zona = ctx.message.text; ctx.reply('📏 Tamaño:'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.tamano = ctx.message.text; ctx.reply('🎨 Estilo:'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.estilo = ctx.message.text; ctx.reply('🎨 Estilo:'); return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.f.estilo = ctx.message.text; ctx.reply('📸 Foto (o "No"):'); return ctx.wizard.next(); },
     async (ctx) => {
         const d = ctx.wizard.state.f;
@@ -439,13 +503,20 @@ bot.action(/^ok_(.+)$/, async (ctx) => {
     if(!d) return ctx.answerCbQuery('❌ Ya no existe.');
     
     const code = generarCodigoRegalo();
-    db.tarjetas_regalo[code] = { ...d, fecha: Date.now(), canjeado: false };
+    db.tarjetas_regalo[code] = { ...d, fecha: Date.now(), canjeado: false, comprador: d.cid };
     delete db.tarjetas_pendientes[pid];
     guardar();
 
-    const msgUser = `✨ **TARJETA REGALO LISTA** ✨\n\n👤 Para: ${d.para}\n💰 Valor: ${d.amount}€\n✉️ "${d.msg}"\n\n🎟️ **CÓDIGO:** \`${code}\``;
-    try { await ctx.telegram.sendMessage(d.cid, msgUser, {parse_mode:'Markdown'}); } catch(e){}
-    ctx.editMessageText(`✅ **PAGO ACEPTADO**\nCódigo: ${code}`);
+    // FORMATO IDÉNTICO A LA IMAGEN
+    const msgFinal = `✨ TARJETA REGALO SPICY INK ✨\n━━━━━━━━━━━━━━━━━━━━\n\n👤 Para: ${d.para}\n💰 Valor: ${d.amount}€\n\n✉️ Dedicatoria:\n"${d.msg}"\n\n🎟 CÓDIGO DE CANJE:\n\`${code}\`\n\n━━━━━━━━━━━━━━━━━━━━\nPresenta este código en el estudio para\ncanjear tu regalo.`;
+
+    // Enviar al Usuario
+    try { await ctx.telegram.sendMessage(d.cid, msgFinal, {parse_mode:'Markdown'}); } catch(e){}
+    
+    // Enviar Copia al Admin (como solicitaste)
+    try { await ctx.telegram.sendMessage(MI_ID, `🔔 **COPIA GENERADA:**\n${msgFinal}`, {parse_mode:'Markdown'}); } catch(e){}
+
+    ctx.editMessageText(`✅ **PAGO ACEPTADO Y GENERADO**\nCódigo: ${code}`);
 });
 
 bot.action(/^no_(.+)$/, async (ctx) => {
@@ -463,7 +534,7 @@ const diccionarioScene = new Scenes.WizardScene('diccionario-scene', (ctx) => { 
 const probadorScene = new Scenes.WizardScene('probador-scene', (ctx) => { ctx.reply('📸 Foto:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Diseñando...'); return ctx.scene.leave(); });
 const cumpleScene = new Scenes.WizardScene('cumple-scene', (ctx) => { ctx.reply('Fecha:'); return ctx.wizard.next(); }, (ctx) => { db.cumples[ctx.from.id] = ctx.message.text; guardar(); ctx.reply('Guardado.'); return ctx.scene.leave(); });
 
-const stage = new Scenes.Stage([tattooScene, mineScene, iaScene, canjeWizard, citaWizard, probadorScene, diccionarioScene, panicoScene, regaloScene, cumpleScene, broadcastScene, couponScene, reminderScene]);
+const stage = new Scenes.Stage([tattooScene, mineScene, iaScene, canjeWizard, citaWizard, probadorScene, diccionarioScene, panicoScene, regaloScene, cumpleScene, broadcastScene, couponScene, reminderScene, adminGiftScene]);
 bot.use(session());
 bot.use(stage.middleware());
 
@@ -487,13 +558,35 @@ function irAlMenuPrincipal(ctx) {
 
 bot.hears('🔥 Cita / Presupuesto', (ctx) => ctx.scene.enter('tattoo-wizard'));
 bot.hears('🎁 Tarjetas Regalo', (ctx) => ctx.scene.enter('regalo-scene'));
+
+// --- INVENTARIO DE USUARIO ACTUALIZADO ---
 bot.hears('👤 Mi Perfil', (ctx) => {
-    const inv = db.inventario[ctx.from.id] || [];
-    let m = `👤 **PERFIL**\n🎒 **Inventario:**`;
-    if(inv.length===0) m+="\n(Vacío)";
-    else inv.forEach(p => m+=`\n🎁 ${p.premio}`);
+    const uid = ctx.from.id;
+    const inv = db.inventario[uid] || [];
+    
+    // Buscar Tarjetas de este usuario
+    const misTarjetas = Object.entries(db.tarjetas_regalo)
+        .filter(([code, data]) => String(data.comprador) === String(uid) || String(data.cid) === String(uid))
+        .map(([code, data]) => {
+            const estado = data.canjeado ? '🔴 Usado' : '🟢 Activo';
+            return `💳 \`${code}\` (${data.amount}€) - ${estado}`;
+        });
+
+    let m = `👤 **PERFIL DE USUARIO**\n\n`;
+    
+    // Sección Ruleta
+    m += `🎒 **Premios Ruleta:**\n`;
+    if(inv.length===0) m+="(Ninguno)\n";
+    else inv.forEach(p => m+=`🎁 ${p.premio}\n`);
+
+    // Sección Tarjetas
+    m += `\n💳 **Mis Tarjetas Compradas:**\n`;
+    if(misTarjetas.length === 0) m+="(Ninguna)";
+    else m += misTarjetas.join('\n');
+
     ctx.reply(m, {parse_mode:'Markdown'});
 });
+// ----------------------------------------
 
 bot.hears('🎮 Zona Fun', (ctx) => ctx.reply('🎢 **ZONA FUN**', Markup.keyboard([['🎰 Tirar Ruleta', '🤖 IA: ¿Qué me tatuo?'], ['📚 Diccionario', '🕶️ Probador 2.0'], ['⬅️ Volver']]).resize()));
 bot.action('nueva_ia', (ctx) => { ctx.answerCbQuery(); ctx.scene.enter('ia-wizard'); });
@@ -541,17 +634,22 @@ bot.on('web_app_data', (ctx) => {
     guardar();
 });
 
+// ==========================================
+// SECCIÓN ADMIN ACTUALIZADA
+// ==========================================
 bot.hears('📊 Panel Admin', (ctx) => {
     if(String(ctx.from.id) !== String(MI_ID)) return;
     ctx.reply('🛠️ **ADMIN**', Markup.inlineKeyboard([
         [Markup.button.callback('👥 Usuarios', 'adm_users'), Markup.button.callback('🎟️ Cupón', 'adm_cup')],
         [Markup.button.callback('📢 Difusión', 'adm_broad'), Markup.button.callback('⏰ Recordatorio', 'adm_rem')],
         [Markup.button.callback('🗂️ Inventario Citas', 'adm_citas_list')],
+        [Markup.button.callback('🎁 Gestión Tarjetas Regalo', 'adm_gifts')],
         [Markup.button.callback('📅 Agendar Cita', 'admin_cita')],
         [Markup.button.callback('⬅️ Volver', 'adm_back')]
     ]));
 });
 
+// Handlers de la sección Admin
 bot.action('adm_users', (ctx) => { ctx.reply(`Usuarios: ${Object.keys(db.fichas).length}`); ctx.answerCbQuery(); });
 bot.action('adm_back', (ctx) => { ctx.deleteMessage(); irAlMenuPrincipal(ctx); });
 bot.action('adm_broad', (ctx) => ctx.scene.enter('broadcast-wizard'));
@@ -562,6 +660,54 @@ bot.action('adm_citas_list', (ctx) => {
     const list = db.citas.filter(c => c.fecha > Date.now()).map(c => `📅 ${c.fechaTexto} - ${c.nombre}`).join('\n');
     ctx.reply(list || "Vacío."); ctx.answerCbQuery();
 });
+
+// --- SUBMENÚ GESTIÓN TARJETAS REGALO ---
+bot.action('adm_gifts', (ctx) => {
+    ctx.editMessageText('🎁 **GESTIÓN TARJETAS REGALO**\nSelecciona una opción:', Markup.inlineKeyboard([
+        [Markup.button.callback('📜 Ver Lista Completa', 'adm_gift_list')],
+        [Markup.button.callback('🔎 Buscar y Canjear', 'adm_gift_redeem')],
+        [Markup.button.callback('⬅️ Volver Admin', 'adm_back_panel')]
+    ]));
+});
+
+bot.action('adm_back_panel', (ctx) => {
+    ctx.deleteMessage();
+    ctx.reply('🛠️ **ADMIN**', Markup.inlineKeyboard([
+        [Markup.button.callback('👥 Usuarios', 'adm_users'), Markup.button.callback('🎟️ Cupón', 'adm_cup')],
+        [Markup.button.callback('📢 Difusión', 'adm_broad'), Markup.button.callback('⏰ Recordatorio', 'adm_rem')],
+        [Markup.button.callback('🗂️ Inventario Citas', 'adm_citas_list')],
+        [Markup.button.callback('🎁 Gestión Tarjetas Regalo', 'adm_gifts')],
+        [Markup.button.callback('📅 Agendar Cita', 'admin_cita')],
+        [Markup.button.callback('⬅️ Volver', 'adm_back')]
+    ]));
+});
+
+// --- LISTADO GLOBAL (Admin ve todo + importes) ---
+bot.action('adm_gift_list', (ctx) => {
+    const codes = Object.entries(db.tarjetas_regalo);
+    if (codes.length === 0) return ctx.reply('❌ No hay tarjetas generadas aún.');
+    
+    let msg = '📜 **INVENTARIO GLOBAL DE TARJETAS**\n\n';
+    // Ordenar: primero las no canjeadas
+    codes.sort((a, b) => (a[1].canjeado === b[1].canjeado) ? 0 : a[1].canjeado ? 1 : -1);
+
+    codes.forEach(([code, data]) => {
+        const icon = data.canjeado ? '🔴' : '🟢';
+        const estado = data.canjeado ? 'Usado' : 'Activo';
+        msg += `${icon} \`${code}\`\n   💰 **${data.amount}€** | 👤 ${data.para}\n\n`;
+    });
+    
+    if (msg.length > 4000) msg = msg.substring(0, 4000) + '... (lista cortada)';
+    
+    ctx.reply(msg, { parse_mode: 'Markdown' });
+    ctx.answerCbQuery();
+});
+
+bot.action('adm_gift_redeem', (ctx) => {
+    ctx.answerCbQuery();
+    ctx.scene.enter('admin-gift-wizard');
+});
+// ----------------------------------------
 
 setInterval(() => {
     const now = Date.now();
