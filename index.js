@@ -8,10 +8,8 @@ const Jimp = require('jimp');
 // ==========================================
 // 1. CONFIGURACIÓN DEL SERVIDOR Y WEB APP
 // ==========================================
-// Detectar URL externa (Render suele darla en esta variable)
 const URL_WEB = process.env.RENDER_EXTERNAL_URL || 'https://TU-PROYECTO.onrender.com'; 
 
-// --- HTML DE LA RULETA (Visualización) ---
 const HTML_RULETA = `
 <!DOCTYPE html>
 <html lang="es">
@@ -47,28 +45,23 @@ const HTML_RULETA = `
         const ctx = canvas.getContext('2d');
         const spinBtn = document.getElementById('spinBtn');
 
-        // Configuración de segmentos y pesos (Probabilidades del usuario)
-        // Pesos: 3 (100%), 20 (50%), 30 (20%), 67 (Sigue jugando)
         const segments = [
-            { text: "100% DTO", color: "#FFD700", weight: 3 },  // Oro
-            { text: "SIGUE JUGANDO", color: "#2f3542", weight: 67 }, // Oscuro
-            { text: "50% DTO", color: "#a4b0be", weight: 20 },  // Plata
-            { text: "SIGUE JUGANDO", color: "#2f3542", weight: 67 }, // Oscuro (Duplicado para distribuir)
-            { text: "20% DTO", color: "#cd6133", weight: 30 },  // Bronce
-            { text: "SIGUE JUGANDO", color: "#2f3542", weight: 67 }  // Oscuro
+            { text: "100% DTO", color: "#FFD700", weight: 3 },
+            { text: "SIGUE JUGANDO", color: "#2f3542", weight: 67 },
+            { text: "50% DTO", color: "#a4b0be", weight: 20 },
+            { text: "SIGUE JUGANDO", color: "#2f3542", weight: 67 },
+            { text: "20% DTO", color: "#cd6133", weight: 30 },
+            { text: "SIGUE JUGANDO", color: "#2f3542", weight: 67 }
         ];
         
-        // Calcular peso total para los ángulos
         const totalWeight = segments.reduce((acc, seg) => acc + seg.weight, 0);
         let currentAngle = 0;
         const centerX = 250;
         const centerY = 250;
         const radius = 250;
 
-        // DIBUJAR RULETA
         segments.forEach(seg => {
             const sliceAngle = (seg.weight / totalWeight) * 2 * Math.PI;
-            
             ctx.beginPath();
             ctx.moveTo(centerX, centerY);
             ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
@@ -79,7 +72,6 @@ const HTML_RULETA = `
             ctx.strokeStyle = "#1a1a1a";
             ctx.stroke();
 
-            // Texto
             ctx.save();
             ctx.translate(centerX, centerY);
             ctx.rotate(currentAngle + sliceAngle / 2);
@@ -94,7 +86,6 @@ const HTML_RULETA = `
             currentAngle += sliceAngle;
         });
 
-        // LÓGICA DE GIRO
         let isSpinning = false;
         
         spinBtn.addEventListener('click', () => {
@@ -103,7 +94,6 @@ const HTML_RULETA = `
             spinBtn.disabled = true;
             spinBtn.innerText = "GIRANDO...";
 
-            // Determinar resultado basado en probabilidades REALES antes de girar visualmente
             let randomWeight = Math.random() * totalWeight;
             let weightSum = 0;
             let selectedIndex = 0;
@@ -115,41 +105,26 @@ const HTML_RULETA = `
                     break;
                 }
             }
-
-            // Calcular rotación para caer en el seleccionado
-            // El puntero está a la derecha (0 radianes en canvas standard, pero rotamos el canvas -90deg en CSS,
-            // así que el puntero visualmente está a las 3 en punto del canvas sin rotar).
-            // Simplificación: Calcular rotación aleatoria gigante + ajuste al segmento.
             
             const segment = segments[selectedIndex];
-            // Ángulo aleatorio dentro del segmento ganador
             const randomInSegment = segment.startAngle + (Math.random() * (segment.endAngle - segment.startAngle));
-            
-            // Total rotación: 5 vueltas completas mín + el ángulo para llegar al puntero
-            // El puntero está fijo, giramos el canvas.
-            // Para que el segmento quede en el puntero (0 grados), debemos rotar: (2PI - angulo_segmento).
-            
             const spinRounds = 10;
             const targetRotation = (Math.PI * 2 * spinRounds) + ((Math.PI * 2) - randomInSegment);
             
             let start = null;
-            const duration = 5000; // 5 segundos
+            const duration = 5000;
 
             function animate(timestamp) {
                 if (!start) start = timestamp;
                 const progress = timestamp - start;
                 const percent = Math.min(progress / duration, 1);
-                
-                // Easing (easeOutCubic)
                 const ease = 1 - Math.pow(1 - percent, 3);
-                
                 const currentRot = targetRotation * ease;
-                canvas.style.transform = \`rotate(\${(currentRot * 180 / Math.PI) - 90}deg)\`; // -90 offset CSS
+                canvas.style.transform = \`rotate(\${(currentRot * 180 / Math.PI) - 90}deg)\`;
 
                 if (progress < duration) {
                     requestAnimationFrame(animate);
                 } else {
-                    // FIN DEL GIRO
                     setTimeout(() => {
                         tg.sendData(JSON.stringify({ premio: segment.text }));
                     }, 500);
@@ -162,14 +137,13 @@ const HTML_RULETA = `
 </html>
 `;
 
-// --- SERVIDOR QUE ENTREGA LA WEB APP ---
 const server = http.createServer((req, res) => {
     if (req.url === '/ruleta') {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(HTML_RULETA);
     } else {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Tatuador Online - V9.0 (Ruleta Visual) ✅');
+        res.end('Tatuador Online - V11.0 (Instrucciones Ruleta) ✅');
     }
 });
 
@@ -187,7 +161,9 @@ const MI_ID = process.env.MI_ID;
 let db = { 
     clics: {}, referidos: {}, confirmados: {}, invitados: {}, 
     fichas: {}, puntos: {}, cupones: {}, citas: [], 
-    alarmas: {}, cumples: {}, ultima_ruleta: {}, 
+    alarmas: {}, cumples: {}, 
+    ultima_ruleta: {}, sanciones: {}, intentos_ruleta: {}, 
+    inventario: {}, 
     mantenimiento: false 
 };
 const DATA_FILE = path.join('/tmp', 'database.json');
@@ -200,6 +176,9 @@ if (fs.existsSync(DATA_FILE)) {
         if (!db.alarmas) db.alarmas = {};
         if (!db.cumples) db.cumples = {};
         if (!db.ultima_ruleta) db.ultima_ruleta = {};
+        if (!db.sanciones) db.sanciones = {};
+        if (!db.intentos_ruleta) db.intentos_ruleta = {};
+        if (!db.inventario) db.inventario = {};
     } catch (e) { console.log("Error al cargar DB"); }
 }
 
@@ -208,7 +187,7 @@ function guardar() {
 }
 
 // ==========================================
-// 3. UTILIDADES (Y NOTIFICADOR)
+// 3. UTILIDADES
 // ==========================================
 const notificarAdmin = (ctx, accion) => {
     if (ctx.from.id.toString() !== MI_ID.toString()) {
@@ -250,6 +229,15 @@ END:VEVENT
 END:VCALENDAR`;
 }
 
+function tiempoRestante(timestampFin) {
+    const diff = timestampFin - Date.now();
+    if (diff <= 0) return null;
+    const dias = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const horas = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutos = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    return `${dias}d ${horas}h ${minutos}m`;
+}
+
 // Diccionarios
 const diccionarioSimbolos = {
     'lobo': 'Lealtad, familia, protección y fuerza interior.',
@@ -279,41 +267,150 @@ const bola8Respuestas = [
 ];
 
 // ==========================================
-// 4. ESCENAS
+// 4. ESCENAS (Inventario, Citas, Etc.)
 // ==========================================
 
-const probadorScene = new Scenes.WizardScene('probador-scene',
+const canjeWizard = new Scenes.WizardScene('canje-wizard',
     (ctx) => {
-        ctx.reply('🕶️ **PROBADOR VIRTUAL**\n1️⃣ Envía una **FOTO DE TU CUERPO**.');
-        ctx.wizard.state.probador = {};
-        return ctx.wizard.next();
-    },
-    (ctx) => {
-        if (!ctx.message || !ctx.message.photo) { ctx.reply('❌ Envía una foto.'); return; }
-        ctx.wizard.state.probador.bodyFileId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-        ctx.reply('✅ Recibido.\n2️⃣ Ahora envía la **IMAGEN DEL DISEÑO** (Mejor si es archivo PNG).');
+        ctx.reply('🏦 **GESTIÓN DE INVENTARIO**\n\nPor favor, introduce el **ID del Cliente** para ver su inventario de premios:');
         return ctx.wizard.next();
     },
     async (ctx) => {
+        const clienteId = ctx.message.text.trim();
+        const premios = db.inventario[clienteId];
+
+        if (!premios || premios.length === 0) {
+            ctx.reply('❌ Este cliente no tiene premios en su inventario.');
+            return ctx.scene.leave();
+        }
+
+        ctx.wizard.state.canje = { clienteId: clienteId };
+        
+        const botones = premios.map((p, index) => {
+            return [Markup.button.callback(`🎁 ${p.premio} (${new Date(p.fecha).toLocaleDateString()})`, `sel_${index}`)];
+        });
+        botones.push([Markup.button.callback('❌ Cancelar', 'cancelar')]);
+
+        await ctx.reply(`🎒 **INVENTARIO DE ${clienteId}**\nSelecciona el premio a aplicar:`, Markup.inlineKeyboard(botones));
+        return ctx.wizard.next();
+    },
+    async (ctx) => {
+        if (!ctx.callbackQuery) {
+            ctx.reply('❌ Por favor, selecciona un botón.');
+            return;
+        }
+
+        const accion = ctx.callbackQuery.data;
+        if (accion === 'cancelar') {
+            ctx.reply('Operación cancelada.');
+            return ctx.scene.leave();
+        }
+
+        if (accion.startsWith('sel_')) {
+            const index = parseInt(accion.split('_')[1]);
+            const premios = db.inventario[ctx.wizard.state.canje.clienteId];
+            
+            if (!premios || !premios[index]) {
+                ctx.reply('❌ Error al recuperar el premio.');
+                return ctx.scene.leave();
+            }
+
+            ctx.wizard.state.canje.premioIndex = index;
+            ctx.wizard.state.canje.premioData = premios[index];
+            
+            await ctx.answerCbQuery();
+            await ctx.reply(`💰 Has seleccionado: **${premios[index].premio}**\n\nIntroduce el **IMPORTE TOTAL** del tatuaje (en €) para calcular y aplicar el premio:`);
+            return ctx.wizard.next();
+        }
+    },
+    (ctx) => {
+        const importe = parseFloat(ctx.message.text);
+        if (isNaN(importe)) {
+            ctx.reply('❌ Por favor, introduce un número válido (ej: 100).');
+            return;
+        }
+
+        const premioTexto = ctx.wizard.state.canje.premioData.premio;
+        let descuento = 0;
+        let final = importe;
+
+        if (premioTexto.includes('%')) {
+            const porcentaje = parseInt(premioTexto.match(/\d+/)[0]);
+            descuento = (importe * porcentaje) / 100;
+            final = importe - descuento;
+        }
+
+        ctx.wizard.state.canje.importe = importe;
+        ctx.wizard.state.canje.final = final;
+
+        ctx.reply(
+            `🧾 **RESUMEN DE OPERACIÓN**\n\n` +
+            `🔹 Importe Base: ${importe}€\n` +
+            `🎁 Premio: ${premioTexto}\n` +
+            `📉 Descuento: -${descuento}€\n` +
+            `💵 **TOTAL A COBRAR: ${final}€**\n\n` +
+            `¿Confirmar y **ELIMINAR** premio del inventario?`,
+            Markup.inlineKeyboard([
+                [Markup.button.callback('✅ SI, Canjear', 'confirm_yes'), Markup.button.callback('❌ NO, Cancelar', 'confirm_no')]
+            ])
+        );
+        return ctx.wizard.next();
+    },
+    async (ctx) => {
+        if (!ctx.callbackQuery) return;
+        
+        if (ctx.callbackQuery.data === 'confirm_yes') {
+            const state = ctx.wizard.state.canje;
+            const inventario = db.inventario[state.clienteId];
+            inventario.splice(state.premioIndex, 1); 
+            guardar();
+
+            await ctx.reply(`✅ **PREMIO COMPLETADO**\nSe ha cobrado ${state.final}€ y el premio se ha eliminado del inventario.`);
+            try {
+                await ctx.telegram.sendMessage(state.clienteId, `🗑️ **PREMIO CANJEADO**\nTu premio "${state.premioData.premio}" ha sido aplicado y eliminado de tu inventario.`);
+            } catch (e) { }
+
+        } else {
+            await ctx.reply('❌ Operación cancelada. El premio sigue en el inventario.');
+        }
+        await ctx.answerCbQuery();
+        return ctx.scene.leave();
+    }
+);
+
+const diccionarioScene = new Scenes.WizardScene('diccionario-scene',
+    (ctx) => { ctx.reply('📚 Símbolo:\n(Ej: lobo, león, rosa...)'); return ctx.wizard.next(); },
+    (ctx) => { 
+        const input = ctx.message.text.toLowerCase().trim();
+        const foundKey = Object.keys(diccionarioSimbolos).find(key => 
+            key.normalize("NFD").replace(/[\u0300-\u036f]/g, "") === 
+            input.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        );
+        if (foundKey) ctx.reply(`📖 **${foundKey.toUpperCase()}:**\n${diccionarioSimbolos[foundKey]}`, { parse_mode: 'Markdown' });
+        else ctx.reply('❌ No tengo ese símbolo.');
+        return ctx.scene.leave(); 
+    }
+);
+
+const probadorScene = new Scenes.WizardScene('probador-scene',
+    (ctx) => { ctx.reply('🕶️ **PROBADOR**\n1️⃣ Envía FOTO CUERPO.'); ctx.wizard.state.probador = {}; return ctx.wizard.next(); },
+    (ctx) => { if (!ctx.message.photo) return ctx.reply('❌ Foto requerida'); ctx.wizard.state.probador.bodyFileId = ctx.message.photo[ctx.message.photo.length - 1].file_id; ctx.reply('2️⃣ Envía DISEÑO (PNG).'); return ctx.wizard.next(); },
+    async (ctx) => {
         let designFileId;
         if (ctx.message.photo) designFileId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-        else if (ctx.message.document && ctx.message.document.mime_type.startsWith('image/')) designFileId = ctx.message.document.file_id;
-        else { ctx.reply('❌ Necesito imagen.'); return; }
-        
-        ctx.reply('🎨 **Fusionando...**');
+        else if (ctx.message.document) designFileId = ctx.message.document.file_id;
+        else return ctx.reply('❌ Imagen requerida');
+        ctx.reply('🎨 Procesando...');
         try {
             const bodyUrl = await ctx.telegram.getFileLink(ctx.wizard.state.probador.bodyFileId);
             const designUrl = await ctx.telegram.getFileLink(designFileId);
             const bodyImage = await Jimp.read(bodyUrl.href);
             const designImage = await Jimp.read(designUrl.href);
-            const targetWidth = bodyImage.bitmap.width * 0.45;
-            designImage.resize(targetWidth, Jimp.AUTO);
-            const x = (bodyImage.bitmap.width / 2) - (designImage.bitmap.width / 2);
-            const y = (bodyImage.bitmap.height / 2) - (designImage.bitmap.height / 2);
-            bodyImage.composite(designImage, x, y);
+            designImage.resize(bodyImage.bitmap.width * 0.45, Jimp.AUTO);
+            bodyImage.composite(designImage, (bodyImage.bitmap.width/2)-(designImage.bitmap.width/2), (bodyImage.bitmap.height/2)-(designImage.bitmap.height/2));
             const buffer = await bodyImage.getBufferAsync(Jimp.MIME_JPEG);
-            await ctx.replyWithPhoto({ source: buffer }, { caption: '🖊️ **¡ASÍ QUEDARÍA!**' });
-        } catch (error) { ctx.reply('❌ Error procesando imágenes.'); }
+            await ctx.replyWithPhoto({ source: buffer });
+        } catch (e) { ctx.reply('❌ Error.'); }
         return ctx.scene.leave();
     }
 );
@@ -338,36 +435,26 @@ const citaWizard = new Scenes.WizardScene('cita-wizard',
         db.citas.push(nc); guardar();
         try { await ctx.telegram.sendMessage(st.clienteId, `📅 **CITA CONFIRMADA**\n${st.nombre}, te esperamos el ${st.fechaTexto}`); } catch(e){}
         const ics = generarICS(new Date(st.timestamp), st.nombre, ctx.message.text, st.telefono);
-        await ctx.replyWithDocument({ source: Buffer.from(ics), filename: 'cita.ics' }, { caption: '✅ Cita creada' });
+        await ctx.replyWithDocument({ source: Buffer.from(ics), filename: 'cita.ics' });
         return ctx.scene.leave();
     }
 );
 
 const simpleWizard = (name, text, cb) => new Scenes.WizardScene(name, (ctx) => { ctx.reply(text); return ctx.wizard.next(); }, cb);
-const couponScene = simpleWizard('coupon-wizard', 'Código cupón:', (ctx) => { db.cupones[ctx.message.text] = 50; guardar(); ctx.reply('Hecho'); return ctx.scene.leave(); });
 const broadcastScene = simpleWizard('broadcast-wizard', 'Mensaje a todos:', async (ctx) => { ctx.reply('Enviando...'); return ctx.scene.leave(); });
-const reminderScene = simpleWizard('reminder-wizard', 'ID Usuario:', async (ctx) => { ctx.reply('Enviado'); return ctx.scene.leave(); });
-const tattooScene = new Scenes.WizardScene('tattoo-wizard', 
-    (ctx)=>{ notificarAdmin(ctx, 'Entró a Presupuesto'); ctx.reply('Escribe tu nombre:'); return ctx.wizard.next()}, 
-    (ctx)=>{ctx.reply('Solicitud recibida.'); return ctx.scene.leave()}
-);
-const iaScene = new Scenes.WizardScene('ia-wizard', 
-    (ctx)=>{ notificarAdmin(ctx, 'Usando IA'); ctx.reply('Describe tu tattoo:'); return ctx.wizard.next()}, 
-    (ctx)=>{ctx.reply('Idea generada!'); return ctx.scene.leave()}
-);
-const mineScene = new Scenes.BaseScene('mine-scene'); mineScene.enter(ctx => { notificarAdmin(ctx, 'Minando Tinta'); ctx.reply('Minando... pulsa /start para salir'); });
-const diccionarioScene = new Scenes.WizardScene('diccionario-scene', (ctx) => { ctx.reply('📚 Símbolo:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Significado...'); return ctx.scene.leave(); });
+const tattooScene = new Scenes.WizardScene('tattoo-wizard', (ctx)=>{ notificarAdmin(ctx, 'Entró a Presupuesto'); ctx.reply('Nombre:'); return ctx.wizard.next()}, (ctx)=>{ctx.reply('Recibido.'); return ctx.scene.leave()});
+const mineScene = new Scenes.BaseScene('mine-scene'); mineScene.enter(ctx => { notificarAdmin(ctx, 'Minando'); ctx.reply('Minando... /start para salir'); });
 const panicoScene = new Scenes.WizardScene('panico-scene', (ctx) => { notificarAdmin(ctx, '⚠️ ALERTA: Botón Pánico'); ctx.reply('1. ¿Calor?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('2. ¿Pus?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('3. ¿Fiebre?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Resultado...'); return ctx.scene.leave(); });
-const regaloScene = new Scenes.WizardScene('regalo-scene', (ctx) => { ctx.reply('Nombre:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Importe:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Gift Card generada.'); return ctx.scene.leave(); });
+const regaloScene = new Scenes.WizardScene('regalo-scene', (ctx) => { ctx.reply('Nombre:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Importe:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Generada.'); return ctx.scene.leave(); });
 const cumpleScene = new Scenes.WizardScene('cumple-scene', (ctx) => { ctx.reply('Fecha DD/MM:'); return ctx.wizard.next(); }, (ctx) => { db.cumples[ctx.from.id] = ctx.message.text; guardar(); ctx.reply('Guardado'); return ctx.scene.leave(); });
 
-const stage = new Scenes.Stage([tattooScene, mineScene, iaScene, couponScene, broadcastScene, reminderScene, citaWizard, probadorScene, diccionarioScene, panicoScene, regaloScene, cumpleScene]);
+const stage = new Scenes.Stage([canjeWizard, tattooScene, mineScene, broadcastScene, citaWizard, probadorScene, diccionarioScene, panicoScene, regaloScene, cumpleScene]);
 bot.use(session());
 bot.use(stage.middleware());
 
 // --- START ---
 bot.start((ctx) => {
-    notificarAdmin(ctx, '🚀 START (Nuevo Usuario o Reinicio)');
+    notificarAdmin(ctx, '🚀 START');
     const text = ctx.message.text;
     if (text.includes('start=')) {
         const inviterId = text.split('=')[1];
@@ -375,7 +462,6 @@ bot.start((ctx) => {
             db.invitados[ctx.from.id] = inviterId;
             db.referidos[inviterId] = (db.referidos[inviterId] || 0) + 1;
             guardar();
-            bot.telegram.sendMessage(inviterId, `👥 ¡Alguien se ha unido con tu enlace!`).catch(()=>{});
         }
     }
     return irAlMenuPrincipal(ctx);
@@ -392,160 +478,164 @@ function irAlMenuPrincipal(ctx) {
     return ctx.reply(`✨ MENÚ PRINCIPAL ✨`, Markup.keyboard(botones).resize());
 }
 
-// --- HANDLERS MENÚ ---
 bot.hears('🔥 Cita / Presupuesto', (ctx) => { notificarAdmin(ctx, '🔥 Cita / Presupuesto'); ctx.scene.enter('tattoo-wizard'); });
 bot.hears('🎁 Tarjetas Regalo', (ctx) => { notificarAdmin(ctx, '🎁 Tarjetas Regalo'); ctx.scene.enter('regalo-scene'); });
 bot.hears('👤 Mi Perfil', (ctx) => {
     notificarAdmin(ctx, '👤 Mi Perfil');
     const u = ctx.from;
-    const pts = db.puntos[u.id] || 0;
-    const citas = db.citas.filter(c => c.clienteId == u.id).length;
-    ctx.reply(`👤 **MI PERFIL**\n\n🆔 ID: \`${u.id}\`\n📛 Nombre: ${u.first_name}\n💎 Puntos: ${pts}\n📅 Citas: ${citas}`, {parse_mode: 'Markdown'});
+    
+    // MOSTRAR INVENTARIO
+    const misPremios = db.inventario[u.id] || [];
+    let msgPremios = misPremios.length > 0 ? "\n🎒 **TUS PREMIOS:**" : "\n🎒 **TUS PREMIOS:** Ninguno.";
+    misPremios.forEach(p => msgPremios += `\n- ${p.premio} (${new Date(p.fecha).toLocaleDateString()})`);
+
+    ctx.reply(`👤 **MI PERFIL**\n\n🆔 ID: \`${u.id}\`\n📛 Nombre: ${u.first_name}\n💎 Puntos: ${db.puntos[u.id] || 0}\n📅 Citas: ${db.citas.filter(c => c.clienteId == u.id).length}${msgPremios}`, {parse_mode: 'Markdown'});
 });
 
-// SUBMENÚS CON RULETA WEB APP Y BOTÓN CONTACTO
+// ======================================================
+// 🔥 CAMBIO PRINCIPAL: MENÚ ZONA FUN + MENSAJE PREVIO
+// ======================================================
 bot.hears('🎮 Zona Fun', (ctx) => {
     notificarAdmin(ctx, '🎮 Zona Fun');
     ctx.reply('🎢 **ZONA FUN**', Markup.keyboard([
-        [Markup.button.webApp('🎰 RULETA VISUAL', `${URL_WEB}/ruleta`)], // Botón que abre la Ruleta HTML
+        ['🎰 Tirar Ruleta'], // BOTÓN DE TEXTO NORMAL (Abre mensaje info)
         ['🔮 Oráculo', '🎱 Bola 8'], 
         ['📚 Diccionario', '🕶️ Probador 2.0'],
         ['💬 Otro (Contactar)', '⬅️ Volver']
     ]).resize());
 });
 
+// NUEVO HANDLER: MENSAJE PROFESIONAL DE INSTRUCCIONES
+bot.hears('🎰 Tirar Ruleta', (ctx) => {
+    const infoMsg = 
+        `🎰 **RULETA SPICY INK - NORMATIVA DE USO**\n\n` +
+        `Bienvenido al sistema de recompensas diarias. Por favor, lee atentamente:\n\n` +
+        `📜 **REGLAS**\n` +
+        `✅ **Límite:** 1 Tirada permitida cada 24 horas.\n` +
+        `⚠️ **Sanciones Automáticas (Anti-Fraude):**\n` +
+        `   • 2º Intento: Suspensión de **2 días**.\n` +
+        `   • 3º Intento: Suspensión acumulada de **5 días**.\n\n` +
+        `🏆 **PREMIOS DISPONIBLES**\n` +
+        `💎 **100% DTO** (Tatuaje Gratis)\n` +
+        `🥈 **50% DTO**\n` +
+        `🥉 **20% DTO**\n\n` +
+        `🎒 **CÓMO FUNCIONA**\n` +
+        `1. Si ganas, el premio se guarda automáticamente en **'👤 Mi Perfil'**.\n` +
+        `2. Cuando vengas al estudio, verificaremos y canjearemos el premio desde tu inventario.\n\n` +
+        `👇 **¡BUENA SUERTE!** 👇`;
+
+    ctx.reply(infoMsg, Markup.inlineKeyboard([
+        [Markup.button.webApp('🚀 ABRIR RULETA', `${URL_WEB}/ruleta`)]
+    ]));
+});
+// ======================================================
+
 bot.hears('🚑 SOS & Cuidados', (ctx) => {
     notificarAdmin(ctx, '🚑 SOS & Cuidados');
-    ctx.reply('🏥 **CUIDADOS**', Markup.keyboard([
-        ['🚨 PÁNICO', '⏰ Alarma Crema'], 
-        ['🩸 Dolor', '🧼 Guía'], 
-        ['💬 Otro (Contactar)', '⬅️ Volver']
-    ]).resize());
+    ctx.reply('🏥 **CUIDADOS**', Markup.keyboard([['🚨 PÁNICO', '⏰ Alarma Crema'], ['🩸 Dolor', '🧼 Guía'], ['💬 Otro (Contactar)', '⬅️ Volver']]).resize());
 });
 
 bot.hears('💎 Club VIP', (ctx) => {
     notificarAdmin(ctx, '💎 Club VIP');
-    const pts = db.puntos[ctx.from.id] || 0;
-    ctx.reply(`💎 **PUNTOS:** ${pts}`, Markup.inlineKeyboard([
-        [Markup.button.callback('📅 Mi Cumple', 'set_cumple')], 
-        [Markup.button.callback('💉 Minar', 'ir_minar')]
-    ]));
+    ctx.reply(`💎 **PUNTOS:** ${db.puntos[ctx.from.id] || 0}`, Markup.inlineKeyboard([[Markup.button.callback('📅 Mi Cumple', 'set_cumple')], [Markup.button.callback('💉 Minar', 'ir_minar')]]));
 });
 
-// CONTACTO
 bot.hears('💬 Otro (Contactar)', (ctx) => {
-    notificarAdmin(ctx, '💬 Pulsó Contacto Directo');
-    const enlaceDirecto = `tg://user?id=${MI_ID}`;
-    ctx.reply(`📩 **CONTACTO DIRECTO**\n\n¿Tienes otra duda? Pulsa el botón de abajo para hablar directamente conmigo:`, 
-        Markup.inlineKeyboard([
-            [Markup.button.url('📲 Hablar con el Tatuador', enlaceDirecto)]
-        ])
-    );
+    notificarAdmin(ctx, '💬 Contacto');
+    ctx.reply(`📩 **CONTACTO**`, Markup.inlineKeyboard([[Markup.button.url('📲 Hablar', `tg://user?id=${MI_ID}`)]]));
 });
 
-// --- MANEJO DE DATOS DE LA RULETA (WEB APP) ---
+// --- RULETA ANTI-CHEAT & INVENTARIO ---
 bot.on('web_app_data', (ctx) => {
     const uid = ctx.from.id;
     const hoy = new Date().toDateString();
-    
-    // Verificamos si ya jugó HOY (Seguridad Backend)
+    const ahora = Date.now();
+    const alias = ctx.from.username ? `@${ctx.from.username}` : "Sin alias";
+    const nombre = ctx.from.first_name || "Desconocido";
+
+    if (db.sanciones[uid] && db.sanciones[uid] > ahora) {
+        return ctx.reply(`🚫 **SANCIONADO**\nRestante: **${tiempoRestante(db.sanciones[uid])}**.`);
+    }
+
     if (db.ultima_ruleta[uid] === hoy) {
-        return ctx.reply('🛑 **YA JUGASTE HOY**\nEl resultado no se ha guardado porque ya tiraste la ruleta hoy. Vuelve mañana.');
+        let intentos = (db.intentos_ruleta[uid] || 1) + 1;
+        db.intentos_ruleta[uid] = intentos;
+        
+        let duracion = 0;
+        if (intentos === 2) duracion = 2 * 86400000;
+        else if (intentos >= 3) duracion = 5 * 86400000;
+
+        if (duracion > 0) {
+            db.sanciones[uid] = ahora + duracion;
+            bot.telegram.sendMessage(MI_ID, `🚫 **SANCIONADO**\n👤 ${nombre}\n🔄 Intento: ${intentos}`);
+            guardar();
+            return ctx.reply(`🚨 **TRAMPA DETECTADA**\nSanción aplicada: ${intentos >= 3 ? '5 días' : '2 días'}.\nJuega limpio.`);
+        } else {
+            guardar();
+            return ctx.reply('🛑 Ya jugaste hoy. Vuelve mañana.');
+        }
     }
 
     const data = JSON.parse(ctx.webAppData.data);
-    const premio = data.premio; // Texto del premio (ej: "100% DTO", "SIGUE JUGANDO")
+    const premio = data.premio;
     
-    // Registrar jugada
     db.ultima_ruleta[uid] = hoy;
-    notificarAdmin(ctx, `🎰 Ruleta Resultado: ${premio}`);
+    db.intentos_ruleta[uid] = 1;
+
+    bot.telegram.sendMessage(MI_ID, `🎰 **RULETA WIN**\n👤 ${nombre}\n🆔 \`${uid}\`\n🎁 ${premio}`, { parse_mode: 'Markdown' });
 
     if (premio.includes("SIGUE")) {
-        ctx.reply('💨 **SIGUE JUGANDO**\nHoy no has tenido suerte, pero ¡vuelve mañana para intentarlo de nuevo!');
+        ctx.reply('💨 **SIGUE JUGANDO**\nSuerte mañana.');
     } else {
-        // Guardar el cupón o premio en la base de datos
-        const codigoPremio = `WIN-${Date.now().toString().slice(-4)}`;
-        if (!db.cupones) db.cupones = {};
-        db.cupones[codigoPremio] = premio; // Guardamos qué ganó
-        
-        ctx.reply(`🎉 **¡HAS GANADO: ${premio}!** 🎉\n\nHaz una captura de pantalla de este mensaje y enséñaselo al tatuador.\n\nCódigo de validación: \`${codigoPremio}\``, { parse_mode: 'Markdown' });
+        if (!db.inventario[uid]) db.inventario[uid] = [];
+        db.inventario[uid].push({ id: Date.now(), premio: premio, fecha: Date.now() });
+
+        ctx.reply(`🎉 **GANASTE: ${premio}**\n\nSe ha guardado en tu inventario (Ver en '👤 Mi Perfil').\nEnseña tu perfil al tatuador para canjearlo.`);
     }
     guardar();
 });
 
+bot.hears('🩸 Dolor', (ctx) => { ctx.reply('🔥 ZONA:', Markup.inlineKeyboard([[Markup.button.callback('💪 Brazo', 'd_3')], [Markup.button.callback('🦴 Costillas', 'd_9')]])); });
+bot.action(/d_(\d+)/, (ctx) => { ctx.answerCbQuery(`Nivel: ${ctx.match[1]}/10`, { show_alert: true }); });
 
-// --- LÓGICA FUN & CARE ---
-bot.hears('🩸 Dolor', (ctx) => {
-    notificarAdmin(ctx, '🩸 Mirando Dolor');
-    ctx.reply('🔥 **MEDIDOR DE DOLOR**\nSelecciona la zona:', Markup.inlineKeyboard([
-        [Markup.button.callback('💪 Antebrazo', 'd_3'), Markup.button.callback('🦵 Muslo', 'd_4')],
-        [Markup.button.callback('🔙 Espalda', 'd_5'), Markup.button.callback('🦶 Gemelo', 'd_4')],
-        [Markup.button.callback('🧣 Cuello', 'd_7'), Markup.button.callback('✋ Mano', 'd_7')],
-        [Markup.button.callback('🦴 Esternón', 'd_8'), Markup.button.callback('👣 Pie', 'd_8')],
-        [Markup.button.callback('💀 Costillas', 'd_9'), Markup.button.callback('🦵 Rodilla', 'd_9')],
-        [Markup.button.callback('🌵 Columna', 'd_10'), Markup.button.callback('🤕 Cabeza', 'd_9')]
-    ]));
-});
-
-bot.action(/d_(\d+)/, (ctx) => {
-    const nivel = parseInt(ctx.match[1]);
-    let msg = `🔥 Nivel: ${nivel}/10\n`;
-    if (nivel <= 3) msg += "😎 Paseo por el parque.";
-    else if (nivel <= 5) msg += "😬 Molesto pero aguantable.";
-    else if (nivel <= 7) msg += "😤 Ya pica bastante.";
-    else if (nivel <= 9) msg += "🥵 ¡Solo para guerreros!";
-    else msg += "💀 VERDADERO DOLOR.";
-    ctx.answerCbQuery(msg, { show_alert: true });
-});
-
-bot.hears('🔮 Oráculo', (ctx) => { notificarAdmin(ctx, '🔮 Oráculo'); ctx.reply(`🔮 ${oraculoFrases[Math.floor(Math.random()*oraculoFrases.length)]}`); });
-bot.hears('🎱 Bola 8', (ctx) => { notificarAdmin(ctx, '🎱 Bola 8'); ctx.reply(bola8Respuestas[Math.floor(Math.random()*bola8Respuestas.length)]); });
+bot.hears('🔮 Oráculo', (ctx) => { ctx.reply(`🔮 ${oraculoFrases[Math.floor(Math.random()*oraculoFrases.length)]}`); });
+bot.hears('🎱 Bola 8', (ctx) => { ctx.reply(bola8Respuestas[Math.floor(Math.random()*bola8Respuestas.length)]); });
 bot.hears('⏰ Alarma Crema', (ctx) => { 
-    notificarAdmin(ctx, '⏰ Alarma Crema Toggle');
     const uid = ctx.from.id;
-    if (db.alarmas[uid]) { delete db.alarmas[uid]; ctx.reply('🔕 Alarma OFF'); }
-    else { db.alarmas[uid] = Date.now(); ctx.reply('🔔 Alarma ON (Cada 4h)'); }
+    if (db.alarmas[uid]) { delete db.alarmas[uid]; ctx.reply('🔕 OFF'); }
+    else { db.alarmas[uid] = Date.now(); ctx.reply('🔔 ON (Cada 4h)'); }
     guardar();
 });
-bot.hears('📚 Diccionario', (ctx) => { notificarAdmin(ctx, '📚 Diccionario'); ctx.scene.enter('diccionario-scene'); });
-bot.hears('🚨 PÁNICO', (ctx) => { notificarAdmin(ctx, '🚨⚠️ BOTÓN PÁNICO USADO'); ctx.scene.enter('panico-scene'); });
-bot.hears('🕶️ Probador 2.0', (ctx) => { notificarAdmin(ctx, '🕶️ Probador 2.0'); ctx.scene.enter('probador-scene'); });
+bot.hears('📚 Diccionario', (ctx) => { ctx.scene.enter('diccionario-scene'); });
+bot.hears('🚨 PÁNICO', (ctx) => { notificarAdmin(ctx, '🚨 PÁNICO'); ctx.scene.enter('panico-scene'); });
+bot.hears('🕶️ Probador 2.0', (ctx) => { ctx.scene.enter('probador-scene'); });
 bot.action('set_cumple', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('cumple-scene'); });
 bot.action('ir_minar', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('mine-scene'); });
 bot.hears('⬅️ Volver', (ctx) => irAlMenuPrincipal(ctx));
-bot.hears('🧼 Guía', (ctx) => { notificarAdmin(ctx, '🧼 Guía Cuidados'); ctx.reply('Lavar, Secar, Crema. 3 veces/día.'); });
+bot.hears('🧼 Guía', (ctx) => { ctx.reply('Lavar, Secar, Crema. 3 veces/día.'); });
 
-// Panel Admin
+// PANEL ADMIN
 bot.hears('📊 Panel Admin', (ctx) => {
     if (ctx.from.id.toString() !== MI_ID.toString()) return;
     return ctx.reply('🛠️ **PANEL**', Markup.inlineKeyboard([
-        [Markup.button.callback('👥 Lista', 'admin_usuarios'), Markup.button.callback('📅 Nueva Cita', 'admin_cita')],
-        [Markup.button.callback('🗓️ Calendario', 'admin_calendario'), Markup.button.callback('📢 Difusión', 'admin_broadcast')]
+        [Markup.button.callback('👥 Lista', 'admin_usuarios'), Markup.button.callback('🎁 Canjear Premio', 'admin_canje')], 
+        [Markup.button.callback('📅 Nueva Cita', 'admin_cita'), Markup.button.callback('📢 Difusión', 'admin_broadcast')]
     ]));
 });
 
-// Acciones Admin
-bot.action('admin_usuarios', async (ctx) => { const ids = [...new Set([...Object.keys(db.puntos), ...Object.keys(db.fichas)])]; ctx.reply(`Usuarios: ${ids.length}`); ctx.answerCbQuery(); });
-bot.action('admin_calendario', async (ctx) => { ctx.reply('Ver calendario...'); ctx.answerCbQuery(); });
+bot.action('admin_usuarios', (ctx) => { ctx.reply(`Usuarios: ${Object.keys(db.puntos).length}`); ctx.answerCbQuery(); });
 bot.action('admin_cita', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('cita-wizard'); });
 bot.action('admin_broadcast', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('broadcast-wizard'); });
+bot.action('admin_canje', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('canje-wizard'); });
 
-// Cron
 setInterval(() => {
     const ahora = Date.now();
-    const UN_DIA = 86400000;
     db.citas.forEach(c => {
-        const rest = c.fecha - ahora;
-        if (!c.avisado24h && rest > 0 && rest <= UN_DIA && rest > (UN_DIA - 600000)) {
+        if (!c.avisado24h && (c.fecha - ahora) > 0 && (c.fecha - ahora) <= 86400000) {
             bot.telegram.sendMessage(c.clienteId, `⏰ Mañana cita: ${c.fechaTexto}`).catch(()=>{});
-            bot.telegram.sendMessage(MI_ID, `🔔 Cita mañana: ${c.nombre}`).catch(()=>{});
             c.avisado24h = true; guardar();
         }
     });
-    Object.keys(db.alarmas).forEach(uid => {
-        const diff = ahora - db.alarmas[uid];
-        if (diff % 14400000 < 60000 && diff > 1000) bot.telegram.sendMessage(uid, '🧴 Hora de la crema').catch(()=>{});
-    });
 }, 60000);
 
-bot.launch().then(() => console.log('🚀 SpicyInk V9.0 (Ruleta Visual + Contacto)'));
+bot.launch().then(() => console.log('🚀 SpicyInk V11 (Instrucciones Ruleta)'));
