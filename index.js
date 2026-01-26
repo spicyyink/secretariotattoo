@@ -103,7 +103,7 @@ const server = http.createServer((req, res) => {
         res.end(HTML_RULETA);
     } else {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Tatuador Online - V13.0 (Fusión Completa + Fix Presupuesto) ✅');
+        res.end('Tatuador Online - V14.0 (IA Completa + Ruleta + Presupuesto) ✅');
     }
 });
 
@@ -195,12 +195,42 @@ END:VEVENT
 END:VCALENDAR`;
 }
 
+// DICCIONARIO COMPLETO (NECESARIO PARA LA IA)
 function traducirTerminos(texto) {
     if (!texto) return "";
     const diccionario = {
         'blanco y negro': 'black and gray', 'color': 'full color', 'realismo': 'photorealistic',
-        'fine line': 'ultra fine line', 'blackwork': 'heavy blackwork', 'lobo': 'wolf', 'león': 'lion',
-        'rosa': 'rose', 'calavera': 'skull', 'mandalas': 'mandala', 'antebrazo': 'forearm', 'brazo': 'arm'
+        'fine line': 'ultra fine line', 'blackwork': 'heavy blackwork', 'lettering': 'custom calligraphy',
+        'tradicional': 'old school traditional', 'neotradicional': 'neo-traditional', 'acuarela': 'watercolor style',
+        'puntillismo': 'dotwork style', 'antebrazo': 'forearm', 'bíceps': 'biceps', 'biceps': 'biceps',
+        'hombro': 'shoulder', 'costillas': 'ribs', 'esternón': 'sternum', 'esternon': 'sternum',
+        'espalda': 'back', 'muslo': 'thigh', 'gemelo': 'calf', 'tobillo': 'ankle', 'mano': 'hand',
+        'cuello': 'neck', 'muñeca': 'wrist', 'rodilla': 'knee', 'cara': 'face', 'pies': 'feet',
+        'columna': 'spine', 'codo': 'elbow', 'axila': 'armpit', 'lobo': 'wolf', 'león': 'lion',
+        'leon': 'lion', 'tigre': 'tiger', 'serpiente': 'snake', 'dragón': 'dragon', 'dragon': 'dragon',
+        'águila': 'eagle', 'aguila': 'eagle', 'búho': 'owl', 'buho': 'owl', 'calavera': 'skull',
+        'catrina': 'sugar skull catrina', 'mariposa': 'butterfly', 'fénix': 'phoenix', 'fenix': 'phoenix',
+        'carpa koi': 'koi fish', 'samurái': 'samurai', 'samurai': 'samurai', 'aullando': 'howling',
+        'saltando': 'leaping', 'rugiendo': 'roaring', 'corriendo': 'running', 'volando': 'flying',
+        'mirando de frente': 'frontal view pose', 'perfil': 'side profile view', 'posición de alerta': 'alert stance',
+        'agazapado': 'crouching', 'ataque': 'attacking pose', 'bosque': 'deep forest', 'sabana': 'savannah',
+        'selva': 'jungle', 'nubes': 'ethereal clouds', 'mandalas': 'intricate mandala patterns',
+        'fondo limpio': 'clean solid background', 'montañas': 'mountains', 'mar': 'ocean waves',
+        'espacio': 'outer space stars', 'geometría': 'geometric patterns', 'cielo despejado': 'clear sky',
+        'luz dramática': 'dramatic high-contrast lighting', 'luz dramatica': 'dramatic high-contrast lighting',
+        'sombras suaves': 'soft_smooth shading', 'alto contraste': 'high contrast cinematic lighting',
+        'hiperrealista': 'hyper-realistic masterpiece, extreme macro photography detail, 8k resolution, ultra-detailed skin textures, depth of field, sharp focus, cinematic volumetric lighting',
+        'minimalista': 'clean minimalist', 'muy sombreado': 'heavy atmospheric shading', 'microrealismo': 'micro-realism',
+        'rosas': 'blooming roses', 'flores': 'flowers', 'dagas': 'sharp daggers', 'espada': 'sword',
+        'fuego': 'burning flames', 'reloj': 'pocket watch', 'brújula': 'compass', 'brujula': 'compass',
+        'corona': 'crown', 'alas': 'angel wings', 'nada': 'none', 'línea fina': 'fine-line work',
+        'linea fina': 'fine-line work', 'línea gruesa': 'bold traditional lines', 'linea gruesa': 'bold traditional lines',
+        'sin líneas': 'no-outline 3D style', 'sin lineas': 'no-outline 3D style', 'fotorealista': 'photorealistic rendering',
+        'vertical alargado': 'vertical elongated', 'circular': 'circular composition', 'diamante': 'diamond-shaped frame',
+        'al gusto': 'custom artistic composition', 'natural': 'natural flow', 'oscuridad': 'dark moody gothic atmosphere',
+        'paz': 'serene and peaceful vibe', 'fuerza': 'powerful and aggressive energy', 'elegancia': 'elegant and sophisticated style',
+        'misterio': 'mysterious aura', 'tristeza': 'melancholic feel', 'libertad': 'sense of freedom',
+        'fuerza, oscuridad': 'powerful energy and dark atmosphere'
     };
     let traducido = texto.toLowerCase().trim();
     for (const [es, en] of Object.entries(diccionario)) {
@@ -211,7 +241,7 @@ function traducirTerminos(texto) {
 }
 
 // ==========================================
-// 🔥 LÓGICA DE PRESUPUESTO DINÁMICA (CÓDIGO 1 - RESTAURADO)
+// 🔥 LÓGICA DE PRESUPUESTO DINÁMICA (CÓDIGO 1)
 // ==========================================
 function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
     const cms = parseInt(tamanoStr.replace(/\D/g, '')) || 0;
@@ -273,7 +303,7 @@ const citaWizard = new Scenes.WizardScene('cita-wizard',
     }
 );
 
-// --- PRESUPUESTO COMPLETO (CÓDIGO 1 RESTAURADO - IDÉNTICO A IMAGEN) ---
+// --- PRESUPUESTO COMPLETO ---
 const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     (ctx) => { ctx.reply('⚠️ FORMULARIO DE CITA\n━━━━━━━━━━━━━━━━━━━━\nEscribe tu Nombre Completo:'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('🔞 ¿Edad?', Markup.keyboard([['+18 años', '+16 años'], ['Menor de 16']]).oneTime().resize()); return ctx.wizard.next(); },
@@ -349,26 +379,116 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
         return ctx.scene.leave();
     }
 );
-// ------------------------------------------------------------------------------------------------
 
-// --- IA GENERADORA (GEMINI PROMPTS) ---
+// =======================================================================
+// 🔥 SECCIÓN IA ACTUALIZADA (WIZARD COMPLETO + MENSAJE NANOBANANA)
+// =======================================================================
 const iaScene = new Scenes.WizardScene('ia-wizard',
-    (ctx) => { ctx.wizard.state.ai = {}; ctx.reply('🤖 **IA ARTIST**\n¿Qué quieres tatuarte? (Ej: Un león con corona)'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.ai.elemento = ctx.message.text; ctx.reply('🎨 ¿Estilo? (Ej: Geométrico, Acuarela)'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.ai.estilo = ctx.message.text; ctx.reply('📍 ¿En qué zona del cuerpo?'); return ctx.wizard.next(); },
+    (ctx) => {
+        ctx.wizard.state.ai = {};
+        ctx.reply('🎨 Selecciona el estilo de tatuaje que buscas:', 
+            Markup.keyboard([
+                ['⚡ Flash Tattoo', '🚬 Estilo Chicano'],
+                ['✨ Personalizado', '⬅️ Volver al Menú']
+            ]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        if (ctx.message.text === '⬅️ Volver al Menú') {
+            ctx.scene.leave();
+            return irAlMenuPrincipal(ctx);
+        }
+        ctx.wizard.state.ai.modo = ctx.message.text;
+        ctx.reply('🤖 **GENERADOR PROFESIONAL (1/10)**\n¿Cuál es el elemento principal? (Ej: Un lobo, una calavera...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.elemento = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(2/10)** ¿Qué está haciendo o en qué postura está? (Ej: Aullando, saltando...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.accion = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(3/10)** ¿Qué hay de fondo? (Ej: Bosque, nubes, mandalas...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.fondo = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(4/10)** ¿Cómo es la iluminación? (Ej: Luz dramática, sombras suaves...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.luz = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(5/10)** ¿Nivel de detalle? (Ej: Hiperrealista, minimalista...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.detalle = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(6/10)** ¿Gama de colores?', 
+            Markup.keyboard([['Blanco y Negro', 'Color'], ['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.color = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(7/10)** ¿Algún elemento extra? (Ej: Rosas, dagas, fuego...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.extra = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(8/10)** ¿Tipo de línea? (Ej: Línea fina, línea gruesa...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.lineas = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(9/10)** ¿Composición/Forma? (Ej: Vertical, circular...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.forma = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(10/10)** ¿Qué sensación debe transmitir? (Ej: Oscuridad, paz...)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.ai.sentimiento = (ctx.message.text === '⏭️ Saltar') ? 'none' : ctx.message.text;
+        ctx.reply('**(11/11)** ¿Sobre fondo blanco? (Ej: si quieres encima de un pecho, brazo. se puede)', 
+            Markup.keyboard([['⏭️ Saltar']]).oneTime().resize());
+        return ctx.wizard.next();
+    },
     async (ctx) => {
         const ai = ctx.wizard.state.ai;
-        const zona = ctx.message.text;
-        const prompt = `Tattoo design of ${traducirTerminos(ai.elemento)} in ${traducirTerminos(ai.estilo)} style, optimized for ${traducirTerminos(zona)}. High contrast, white background, 8k resolution.`;
-        const url = `https://gemini.google.com/app?q=${encodeURIComponent("Genera imagen: " + prompt)}`;
+        const p = (val) => (val === 'none' ? 'none' : traducirTerminos(val));
+        const f = db.fichas[ctx.from.id] || { zona: "body", estilo: "artistic" };
         
-        await ctx.reply(`🧠 **IDEA GENERADA**\n\nPrompt: \`${prompt}\``, Markup.inlineKeyboard([
-            [Markup.button.url('🎨 VER EN GEMINI', url)],
-            [Markup.button.callback('⬅️ Menú', 'salir_ia')]
-        ]));
+        // CONSTRUCCIÓN DEL PROMPT EXACTO COMO EN LA IMAGEN
+        const prompt = `Professional tattoo flash design of ${p(ai.elemento)}, ${p(ai.accion)}. Background: ${p(ai.fondo)}. Lighting: ${p(ai.luz)}. Detail: ${p(ai.detalle)}. Palette: ${p(ai.color)}. Elements: ${p(ai.extra)}. Linework: ${p(ai.lineas)}. Composition: ${p(ai.forma)}. Mood: ${p(ai.sentimiento)}. Optimized for ${traducirTerminos(f.zona)} in ${traducirTerminos(f.estilo)} style. 8k, high contrast, clean white background, master quality.`;
+        
+        const encodedPrompt = encodeURIComponent(`Genera una imagen de tatuaje con este prompt en inglés: ${prompt}`);
+        const geminiUrl = `https://gemini.google.com/app?q=${encodedPrompt}`;
+
+        const mensajeFinal = `🧠 **PROMPT PROFESIONAL GENERADO**\n━━━━━━━━━━━━━━━━━━━━\n\n${prompt}\n\n💬 Copia y pega el comando anterior dentro de este enlace, que es la IA que usa el tatuador por el procesamiento **NanoBananaIA**. También puedes copiar y pegar en una IA que sea de tu gusto y genere imagen. La mía es gratuita y puedes generar hasta 50 imágenes al día.`;
+
+        await ctx.reply(mensajeFinal, {
+            parse_mode: 'Markdown',
+            ...Markup.removeKeyboard(),
+            ...Markup.inlineKeyboard([
+                [Markup.button.url('🌍 GENERAR EN GOOGLE GEMINI', geminiUrl)],
+                [Markup.button.callback('🔄 Otra idea', 'nueva_ia')]
+            ])
+        });
         return ctx.scene.leave();
     }
 );
+// =======================================================================
+
 
 // --- MINERÍA (JUEGO) ---
 const mineScene = new Scenes.BaseScene('mine-scene');
@@ -473,7 +593,7 @@ bot.hears('👤 Mi Perfil', (ctx) => {
     ctx.reply(msg, { parse_mode: 'Markdown' });
 });
 
-// ZONA FUN (Fusión: Ruleta + IA + Probador)
+// ZONA FUN
 bot.hears('🎮 Zona Fun', (ctx) => {
     ctx.reply('🎢 **ZONA FUN**', Markup.keyboard([
         ['🎰 Tirar Ruleta', '🤖 IA: ¿Qué me tatuo?'],
@@ -482,6 +602,8 @@ bot.hears('🎮 Zona Fun', (ctx) => {
         ['⬅️ Volver']
     ]).resize());
 });
+
+bot.action('nueva_ia', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('ia-wizard'); });
 
 // CLUB VIP (Fusión: Minar + Referidos + Puntos)
 bot.hears('💎 Club VIP', (ctx) => {
@@ -501,7 +623,6 @@ bot.action('ver_referidos', (ctx) => {
     ctx.reply(`👥 **REFERIDOS**\nInvita amigos y gana premios.\n\n🔗 Tu enlace:\n${link}`); 
     ctx.answerCbQuery();
 });
-bot.action('salir_ia', (ctx) => { ctx.answerCbQuery(); return irAlMenuPrincipal(ctx); });
 
 bot.hears('🤖 IA: ¿Qué me tatuo?', (ctx) => ctx.scene.enter('ia-wizard'));
 bot.hears('🎰 Tirar Ruleta', (ctx) => {
@@ -590,4 +711,4 @@ setInterval(() => {
     });
 }, 60000);
 
-bot.launch().then(() => console.log('🚀 SpicyInk V13 (Fusión Total)'));
+bot.launch().then(() => console.log('🚀 SpicyInk V14 (IA NanoBanana + Prompt Update)'));
