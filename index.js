@@ -8,9 +8,8 @@ const Jimp = require('jimp');
 // ==========================================
 // 1. CONFIGURACIÓN DEL SERVIDOR Y WEB APP
 // ==========================================
-
-// TU URL REAL DE RENDER (Configurada para la Ruleta)
-const URL_WEB = 'https://spicybot-44tv.onrender.com'; 
+// Detectar URL externa (Render suele darla en esta variable)
+const URL_WEB = process.env.RENDER_EXTERNAL_URL || 'https://TU-PROYECTO.onrender.com'; 
 
 // --- HTML DE LA RULETA (Visualización) ---
 const HTML_RULETA = `
@@ -48,21 +47,25 @@ const HTML_RULETA = `
         const ctx = canvas.getContext('2d');
         const spinBtn = document.getElementById('spinBtn');
 
+        // Configuración de segmentos y pesos (Probabilidades del usuario)
+        // Pesos: 3 (100%), 20 (50%), 30 (20%), 67 (Sigue jugando)
         const segments = [
             { text: "100% DTO", color: "#FFD700", weight: 3 },  // Oro
             { text: "SIGUE JUGANDO", color: "#2f3542", weight: 67 }, // Oscuro
             { text: "50% DTO", color: "#a4b0be", weight: 20 },  // Plata
-            { text: "SIGUE JUGANDO", color: "#2f3542", weight: 67 }, // Oscuro
+            { text: "SIGUE JUGANDO", color: "#2f3542", weight: 67 }, // Oscuro (Duplicado para distribuir)
             { text: "20% DTO", color: "#cd6133", weight: 30 },  // Bronce
             { text: "SIGUE JUGANDO", color: "#2f3542", weight: 67 }  // Oscuro
         ];
         
+        // Calcular peso total para los ángulos
         const totalWeight = segments.reduce((acc, seg) => acc + seg.weight, 0);
         let currentAngle = 0;
         const centerX = 250;
         const centerY = 250;
         const radius = 250;
 
+        // DIBUJAR RULETA
         segments.forEach(seg => {
             const sliceAngle = (seg.weight / totalWeight) * 2 * Math.PI;
             
@@ -76,6 +79,7 @@ const HTML_RULETA = `
             ctx.strokeStyle = "#1a1a1a";
             ctx.stroke();
 
+            // Texto
             ctx.save();
             ctx.translate(centerX, centerY);
             ctx.rotate(currentAngle + sliceAngle / 2);
@@ -90,6 +94,7 @@ const HTML_RULETA = `
             currentAngle += sliceAngle;
         });
 
+        // LÓGICA DE GIRO
         let isSpinning = false;
         
         spinBtn.addEventListener('click', () => {
@@ -98,6 +103,7 @@ const HTML_RULETA = `
             spinBtn.disabled = true;
             spinBtn.innerText = "GIRANDO...";
 
+            // Determinar resultado basado en probabilidades REALES antes de girar visualmente
             let randomWeight = Math.random() * totalWeight;
             let weightSum = 0;
             let selectedIndex = 0;
@@ -109,27 +115,41 @@ const HTML_RULETA = `
                     break;
                 }
             }
+
+            // Calcular rotación para caer en el seleccionado
+            // El puntero está a la derecha (0 radianes en canvas standard, pero rotamos el canvas -90deg en CSS,
+            // así que el puntero visualmente está a las 3 en punto del canvas sin rotar).
+            // Simplificación: Calcular rotación aleatoria gigante + ajuste al segmento.
             
             const segment = segments[selectedIndex];
+            // Ángulo aleatorio dentro del segmento ganador
             const randomInSegment = segment.startAngle + (Math.random() * (segment.endAngle - segment.startAngle));
+            
+            // Total rotación: 5 vueltas completas mín + el ángulo para llegar al puntero
+            // El puntero está fijo, giramos el canvas.
+            // Para que el segmento quede en el puntero (0 grados), debemos rotar: (2PI - angulo_segmento).
+            
             const spinRounds = 10;
             const targetRotation = (Math.PI * 2 * spinRounds) + ((Math.PI * 2) - randomInSegment);
             
             let start = null;
-            const duration = 5000; 
+            const duration = 5000; // 5 segundos
 
             function animate(timestamp) {
                 if (!start) start = timestamp;
                 const progress = timestamp - start;
                 const percent = Math.min(progress / duration, 1);
+                
+                // Easing (easeOutCubic)
                 const ease = 1 - Math.pow(1 - percent, 3);
                 
                 const currentRot = targetRotation * ease;
-                canvas.style.transform = \`rotate(\${(currentRot * 180 / Math.PI) - 90}deg)\`;
+                canvas.style.transform = \`rotate(\${(currentRot * 180 / Math.PI) - 90}deg)\`; // -90 offset CSS
 
                 if (progress < duration) {
                     requestAnimationFrame(animate);
                 } else {
+                    // FIN DEL GIRO
                     setTimeout(() => {
                         tg.sendData(JSON.stringify({ premio: segment.text }));
                     }, 500);
@@ -149,7 +169,7 @@ const server = http.createServer((req, res) => {
         res.end(HTML_RULETA);
     } else {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Tatuador Online - V9.1 (URL Configurada) ✅');
+        res.end('Tatuador Online - V9.0 (Ruleta Visual) ✅');
     }
 });
 
@@ -230,6 +250,7 @@ END:VEVENT
 END:VCALENDAR`;
 }
 
+// Diccionarios
 const diccionarioSimbolos = {
     'lobo': 'Lealtad, familia, protección y fuerza interior.',
     'león': 'Autoridad, coraje, poder y realeza.',
@@ -386,7 +407,7 @@ bot.hears('👤 Mi Perfil', (ctx) => {
 bot.hears('🎮 Zona Fun', (ctx) => {
     notificarAdmin(ctx, '🎮 Zona Fun');
     ctx.reply('🎢 **ZONA FUN**', Markup.keyboard([
-        [Markup.button.webApp('🎰 RULETA VISUAL', `${URL_WEB}/ruleta`)], // Abre tu URL de Render
+        [Markup.button.webApp('🎰 RULETA VISUAL', `${URL_WEB}/ruleta`)], // Botón que abre la Ruleta HTML
         ['🔮 Oráculo', '🎱 Bola 8'], 
         ['📚 Diccionario', '🕶️ Probador 2.0'],
         ['💬 Otro (Contactar)', '⬅️ Volver']
@@ -411,6 +432,7 @@ bot.hears('💎 Club VIP', (ctx) => {
     ]));
 });
 
+// CONTACTO
 bot.hears('💬 Otro (Contactar)', (ctx) => {
     notificarAdmin(ctx, '💬 Pulsó Contacto Directo');
     const enlaceDirecto = `tg://user?id=${MI_ID}`;
@@ -426,27 +448,31 @@ bot.on('web_app_data', (ctx) => {
     const uid = ctx.from.id;
     const hoy = new Date().toDateString();
     
+    // Verificamos si ya jugó HOY (Seguridad Backend)
     if (db.ultima_ruleta[uid] === hoy) {
-        return ctx.reply('🛑 **YA JUGASTE HOY**\nVuelve mañana.');
+        return ctx.reply('🛑 **YA JUGASTE HOY**\nEl resultado no se ha guardado porque ya tiraste la ruleta hoy. Vuelve mañana.');
     }
 
     const data = JSON.parse(ctx.webAppData.data);
-    const premio = data.premio;
+    const premio = data.premio; // Texto del premio (ej: "100% DTO", "SIGUE JUGANDO")
     
+    // Registrar jugada
     db.ultima_ruleta[uid] = hoy;
     notificarAdmin(ctx, `🎰 Ruleta Resultado: ${premio}`);
 
     if (premio.includes("SIGUE")) {
-        ctx.reply('💨 **SIGUE JUGANDO**\nHoy no hubo suerte.');
+        ctx.reply('💨 **SIGUE JUGANDO**\nHoy no has tenido suerte, pero ¡vuelve mañana para intentarlo de nuevo!');
     } else {
+        // Guardar el cupón o premio en la base de datos
         const codigoPremio = `WIN-${Date.now().toString().slice(-4)}`;
         if (!db.cupones) db.cupones = {};
-        db.cupones[codigoPremio] = premio;
+        db.cupones[codigoPremio] = premio; // Guardamos qué ganó
         
-        ctx.reply(`🎉 **¡HAS GANADO: ${premio}!** 🎉\n\nHaz captura y enséñaselo al tatuador.\nCódigo: \`${codigoPremio}\``, { parse_mode: 'Markdown' });
+        ctx.reply(`🎉 **¡HAS GANADO: ${premio}!** 🎉\n\nHaz una captura de pantalla de este mensaje y enséñaselo al tatuador.\n\nCódigo de validación: \`${codigoPremio}\``, { parse_mode: 'Markdown' });
     }
     guardar();
 });
+
 
 // --- LÓGICA FUN & CARE ---
 bot.hears('🩸 Dolor', (ctx) => {
@@ -470,18 +496,6 @@ bot.action(/d_(\d+)/, (ctx) => {
     else if (nivel <= 9) msg += "🥵 ¡Solo para guerreros!";
     else msg += "💀 VERDADERO DOLOR.";
     ctx.answerCbQuery(msg, { show_alert: true });
-});
-
-bot.hears('🎰 Ruleta', (ctx) => {
-    notificarAdmin(ctx, '🎰 Jugando Ruleta (Texto)');
-    const uid = ctx.from.id; const hoy = new Date().toDateString();
-    if (db.ultima_ruleta[uid] === hoy) return ctx.reply('🛑 Ya jugaste hoy.');
-    db.ultima_ruleta[uid] = hoy;
-    const r = Math.random();
-    if (r < 0.2) { db.puntos[uid] = Math.max(0, (db.puntos[uid]||0)-2); ctx.reply('💣 -2 pts'); }
-    else if (r < 0.5) { db.puntos[uid] = (db.puntos[uid]||0)+5; ctx.reply('🎰 +5 pts'); }
-    else ctx.reply('💨 Nada.');
-    guardar();
 });
 
 bot.hears('🔮 Oráculo', (ctx) => { notificarAdmin(ctx, '🔮 Oráculo'); ctx.reply(`🔮 ${oraculoFrases[Math.floor(Math.random()*oraculoFrases.length)]}`); });
@@ -534,4 +548,4 @@ setInterval(() => {
     });
 }, 60000);
 
-bot.launch().then(() => console.log('🚀 SpicyInk V9.1 (URL Configurada)'));
+bot.launch().then(() => console.log('🚀 SpicyInk V9.0 (Ruleta Visual + Contacto)'));
