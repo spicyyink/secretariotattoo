@@ -102,7 +102,7 @@ const server = http.createServer((req, res) => {
         res.end(HTML_RULETA);
     } else {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Tatuador Online - V18.0 (Citas & Inventario Admin) ✅');
+        res.end('Tatuador Online - V19.0 (Bugfix Citas) ✅');
     }
 });
 
@@ -241,7 +241,7 @@ function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
 // 4. ESCENAS (WIZARDS)
 // ==========================================
 
-// --- CITA (ADMIN) - MODIFICADO PARA AVISO DOBLE ---
+// --- CITA (ADMIN) - MODIFICADO PARA ARREGLAR UNDEFINED ---
 const citaWizard = new Scenes.WizardScene('cita-wizard',
     (ctx) => { ctx.reply('📅 **NUEVA CITA**\nID Cliente:'); ctx.wizard.state.cita = {}; return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.cita.clienteId = ctx.message.text.trim(); ctx.reply('👤 Nombre:'); return ctx.wizard.next(); },
@@ -252,7 +252,7 @@ const citaWizard = new Scenes.WizardScene('cita-wizard',
             const f = parsearFecha(ctx.message.text);
             if (isNaN(f.getTime())) throw new Error();
             ctx.wizard.state.cita.timestamp = f.getTime();
-            ctx.wizard.state.cita.fechaStr = ctx.message.text;
+            ctx.wizard.state.cita.fechaStr = ctx.message.text; // Guardamos la fecha texto aquí
             ctx.reply('💉 Tatuaje:'); return ctx.wizard.next();
         } catch (e) { ctx.reply('❌ Fecha mal (DD/MM/YYYY HH:MM).'); return; }
     },
@@ -273,15 +273,17 @@ const citaWizard = new Scenes.WizardScene('cita-wizard',
         
         // AVISO AL CLIENTE
         try { 
-            await ctx.telegram.sendMessage(st.clienteId, `📅 **CITA CONFIRMADA**\n${st.nombre}, te esperamos el ${st.fechaTexto}\n\n💉 **Trabajo:** ${nc.descripcion}\n⏰ **Recordatorio:** Te avisaré 24h antes.`); 
+            // CORRECCIÓN AQUÍ: usamos st.fechaStr en lugar de st.fechaTexto
+            await ctx.telegram.sendMessage(st.clienteId, `📅 **CITA CONFIRMADA**\n${st.nombre}, te esperamos el ${st.fechaStr}\n\n💉 **Trabajo:** ${nc.descripcion}\n⏰ **Recordatorio:** Te avisaré 24h antes.`); 
         } catch(e) {
             ctx.reply('⚠️ No se pudo enviar mensaje al cliente (¿Me ha bloqueado?).');
         }
 
-        // AVISO AL ADMIN (Creación de archivo ICS + Texto)
+        // AVISO AL ADMIN
+        // CORRECCIÓN AQUÍ TAMBIÉN
         const ics = generarICS(new Date(st.timestamp), st.nombre, ctx.message.text, st.telefono);
         await ctx.replyWithDocument({ source: Buffer.from(ics), filename: 'cita.ics' }, { 
-            caption: `✅ **CITA AGENDADA**\n\n👤 ${st.nombre}\n📅 ${st.fechaTexto}\n📞 ${st.telefono}\n\n🔔 He notificado al cliente y programado el aviso de 24h.` 
+            caption: `✅ **CITA AGENDADA**\n\n👤 ${st.nombre}\n📅 ${st.fechaStr}\n📞 ${st.telefono}\n\n🔔 He notificado al cliente y programado el aviso de 24h.` 
         });
         
         return ctx.scene.leave();
@@ -599,7 +601,7 @@ bot.start((ctx) => {
     return irAlMenuPrincipal(ctx);
 });
 
-// 🔥 MENÚ PRINCIPAL (DISEÑO FINAL)
+// 🔥 MENÚ PRINCIPAL
 function irAlMenuPrincipal(ctx) {
     if (db.mantenimiento && ctx.from.id.toString() !== MI_ID.toString()) return ctx.reply('🛠️ Mantenimiento. Volvemos pronto.');
     
@@ -731,7 +733,7 @@ bot.on('web_app_data', (ctx) => {
     guardar();
 });
 
-// 🔥 PANEL ADMIN (DISEÑO ACTUALIZADO)
+// 🔥 PANEL ADMIN
 bot.hears('📊 Panel Admin', (ctx) => {
     if (ctx.from.id.toString() !== MI_ID.toString()) return;
     
@@ -740,9 +742,9 @@ bot.hears('📊 Panel Admin', (ctx) => {
     ctx.reply('🛠️ **PANEL DE ADMINISTRACIÓN**', Markup.inlineKeyboard([
         [Markup.button.callback('👥 Lista Usuarios', 'adm_users'), Markup.button.callback('🎟️ Crear Cupón', 'adm_cup')],
         [Markup.button.callback('📢 Difusión Global', 'adm_broad'), Markup.button.callback('⏰ Recordatorio', 'adm_rem')],
-        [Markup.button.callback('🗂️ Inventario Citas', 'adm_citas_list')], // Nuevo botón Inventario
+        [Markup.button.callback('🗂️ Inventario Citas', 'adm_citas_list')], 
         [Markup.button.callback(botonMant, 'adm_mant')],
-        [Markup.button.callback('📅 Agendar Cita', 'admin_cita')], // Botón explícito para crear cita
+        [Markup.button.callback('📅 Agendar Cita', 'admin_cita')], 
         [Markup.button.callback('📜 Consentimiento', 'adm_legal'), Markup.button.callback('⬅️ Volver', 'adm_back')]
     ]));
 });
@@ -759,7 +761,6 @@ bot.action('admin_cita', (ctx) => ctx.scene.enter('cita-wizard'));
 // 🔥 INVENTARIO DE CITAS
 bot.action('adm_citas_list', (ctx) => {
     const now = Date.now();
-    // Filtramos citas futuras y las ordenamos
     const citasFuturas = db.citas
         .filter(c => c.fecha > now)
         .sort((a, b) => a.fecha - b.fecha);
@@ -796,6 +797,6 @@ setInterval(() => {
             guardar();
         }
     });
-}, 60000); // Revisar cada minuto
+}, 60000); 
 
-bot.launch().then(() => console.log('🚀 SpicyInk V18 (Final - Admin Panel Updated)'));
+bot.launch().then(() => console.log('🚀 SpicyInk V19 (Final - Bugfix Citas)'));
