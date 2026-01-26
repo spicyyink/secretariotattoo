@@ -21,11 +21,12 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 const MI_ID = process.env.MI_ID; 
 
 // ==========================================
-// 2. BASE DE DATOS LOCAL (CON NUEVAS TABLAS)
+// 2. BASE DE DATOS LOCAL
 // ==========================================
 let db = { 
     clics: {}, referidos: {}, confirmados: {}, invitados: {}, 
-    fichas: {}, puntos: {}, cupones: {}, mantenimiento: false 
+    fichas: {}, puntos: {}, cupones: {}, citas: [], 
+    mantenimiento: false 
 };
 const DATA_FILE = path.join('/tmp', 'database.json');
 
@@ -36,6 +37,7 @@ if (fs.existsSync(DATA_FILE)) {
         if (!db.fichas) db.fichas = {};
         if (!db.puntos) db.puntos = {};
         if (!db.cupones) db.cupones = {};
+        if (!db.citas) db.citas = [];
         if (db.mantenimiento === undefined) db.mantenimiento = false;
     } catch (e) { console.log("Error al cargar DB"); }
 }
@@ -44,6 +46,43 @@ function guardar() {
     try {
         fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2));
     } catch (e) { console.log("Error al guardar"); }
+}
+
+// ==========================================
+// 2.1 UTILIDADES DE FECHA Y CALENDARIO
+// ==========================================
+
+function parsearFecha(texto) {
+    const [fecha, hora] = texto.split(' ');
+    const [dia, mes, anio] = fecha.split('/').map(Number);
+    const [horas, minutos] = hora.split(':').map(Number);
+    return new Date(anio, mes - 1, dia, horas, minutos);
+}
+
+function generarICS(fechaInicio, nombreCliente, descripcion) {
+    const pad = (n) => n < 10 ? '0' + n : n;
+    const formatICSDate = (date) => {
+        return `${date.getFullYear()}${pad(date.getMonth()+1)}${pad(date.getDate())}T${pad(date.getHours())}${pad(date.getMinutes())}00`;
+    };
+    const fechaFin = new Date(fechaInicio.getTime() + (2 * 60 * 60 * 1000)); 
+
+    return `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//SpicyInk//TattooBot//EN
+BEGIN:VEVENT
+UID:${Date.now()}@spicyink
+DTSTAMP:${formatICSDate(new Date())}
+DTSTART:${formatICSDate(fechaInicio)}
+DTEND:${formatICSDate(fechaFin)}
+SUMMARY:Tatuaje con ${nombreCliente}
+DESCRIPTION:${descripcion}
+BEGIN:VALARM
+TRIGGER:-PT24H
+DESCRIPTION:Recordatorio de Tatuaje
+ACTION:DISPLAY
+END:VALARM
+END:VEVENT
+END:VCALENDAR`;
 }
 
 // ==========================================
@@ -156,8 +195,83 @@ function irAlMenuPrincipal(ctx) {
 }
 
 // ==========================================
-// 6. ESCENAS (NUEVAS ESCENAS ADMIN AÑADIDAS)
+// 6. ESCENAS
 // ==========================================
+
+const citaWizard = new Scenes.WizardScene('cita-wizard',
+    (ctx) => { 
+        ctx.reply('📅 **NUEVA CITA (ADMIN)**\nIntroduce el ID del cliente de Telegram:\n(Puedes verlo en la lista de usuarios)'); 
+        ctx.wizard.state.cita = {};
+        return ctx.wizard.next(); 
+    },
+    (ctx) => { 
+        ctx.wizard.state.cita.clienteId = ctx.message.text.trim();
+        const nombreFicha = db.fichas[ctx.message.text] ? db.fichas[ctx.message.text].nombre : "Cliente";
+        ctx.wizard.state.cita.nombre = nombreFicha;
+        
+        ctx.reply(`✅ Cliente: ${nombreFicha}\n\nAhora escribe la FECHA y HORA exacta en este formato:\n**DD/MM/YYYY HH:MM**\n\nEjemplo: 25/12/2026 10:30`); 
+        return ctx.wizard.next(); 
+    },
+    (ctx) => {
+        const fechaStr = ctx.message.text;
+        const regex = /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/;
+        
+        if (!regex.test(fechaStr)) {
+            ctx.reply('❌ Formato incorrecto. Inténtalo de nuevo:\nDD/MM/YYYY HH:MM (ej: 20/05/2026 17:00)');
+            return; 
+        }
+
+        try {
+            const fechaObj = parsearFecha(fechaStr);
+            if (isNaN(fechaObj.getTime())) throw new Error("Fecha inválida");
+            
+            ctx.wizard.state.cita.fechaStr = fechaStr;
+            ctx.wizard.state.cita.timestamp = fechaObj.getTime();
+            
+            ctx.reply('✍️ Describe brevemente el tatuaje (para el calendario):');
+            return ctx.wizard.next();
+        } catch (e) {
+            ctx.reply('❌ La fecha no es válida. Revisa el calendario.');
+            return;
+        }
+    },
+    async (ctx) => {
+        const estado = ctx.wizard.state.cita;
+        estado.descripcion = ctx.message.text;
+        
+        const nuevaCita = {
+            id: Date.now(),
+            clienteId: estado.clienteId,
+            nombre: estado.nombre,
+            fecha: estado.timestamp, 
+            fechaTexto: estado.citaStr || estado.fechaStr, 
+            descripcion: estado.descripcion,
+            avisado24h: false
+        };
+        
+        db.citas.push(nuevaCita);
+        guardar();
+
+        try {
+            await ctx.telegram.sendMessage(estado.clienteId, `📅 **CITA CONFIRMADA**\n━━━━━━━━━━━━━━━━━━━━\nHola ${estado.nombre}, tu cita ha sido registrada.\n\n📆 **Día:** ${estado.fechaStr}\n💉 **Tatuaje:** ${estado.descripcion}\n\n📍 Te esperamos en el estudio.`);
+        } catch (e) {
+            ctx.reply('⚠️ No se pudo enviar mensaje al cliente (¿Me ha bloqueado?), pero la cita se guardó.');
+        }
+
+        const fechaObj = new Date(estado.timestamp);
+        const icsContent = generarICS(fechaObj, estado.nombre, estado.descripcion);
+        const buffer = Buffer.from(icsContent, 'utf-8');
+
+        await ctx.replyWithDocument({
+            source: buffer,
+            filename: `Cita_${estado.nombre.replace(/\s/g, '_')}.ics`
+        }, { 
+            caption: '✅ **Cita Creada**\n\nToca el archivo arriba para añadirlo al calendario de tu iPhone inmediatamente.' 
+        });
+
+        return ctx.scene.leave();
+    }
+);
 
 const couponScene = new Scenes.WizardScene('coupon-wizard',
     (ctx) => { ctx.reply('🎟️ **GENERADOR DE CUPONES**\nEscribe el código del cupón (ej: PROMO20):'); return ctx.wizard.next(); },
@@ -185,7 +299,7 @@ const broadcastScene = new Scenes.WizardScene('broadcast-wizard',
 );
 
 const reminderScene = new Scenes.WizardScene('reminder-wizard',
-    (ctx) => { ctx.reply('⏰ **RECORDATORIO DE CITA**\nIntroduce el ID del usuario:'); return ctx.wizard.next(); },
+    (ctx) => { ctx.reply('⏰ **RECORDATORIO MANUAL**\nIntroduce el ID del usuario:'); return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.uid = ctx.message.text; ctx.reply('Escribe la fecha y hora (ej: Mañana a las 10:00):'); return ctx.wizard.next(); },
     async (ctx) => {
         try {
@@ -408,7 +522,7 @@ const ideasScene = new Scenes.WizardScene('ideas-scene',
 // ==========================================
 // 7. MIDDLEWARES Y REGISTRO
 // ==========================================
-const stage = new Scenes.Stage([tattooScene, mineScene, ideasScene, iaScene, couponScene, broadcastScene, reminderScene]);
+const stage = new Scenes.Stage([tattooScene, mineScene, ideasScene, iaScene, couponScene, broadcastScene, reminderScene, citaWizard]);
 bot.use(session());
 bot.use(stage.middleware());
 
@@ -470,50 +584,63 @@ bot.command('canjear', (ctx) => {
     ctx.telegram.sendMessage(targetId, `🎉 ¡Has recibido ${ptsToAdd} puntos en el Club de Afiliados! Consulta tus puntos en el menú.`);
 });
 
-// --- PANEL DE CONTROL (ADMIN ACTUALIZADO) ---
+// --- PANEL DE CONTROL (ADMIN) ---
 bot.hears('📊 Panel de Control', (ctx) => {
     if (ctx.from.id.toString() !== MI_ID.toString()) return;
     return ctx.reply('🛠️ **PANEL DE ADMINISTRACIÓN**', 
         Markup.inlineKeyboard([
-            [Markup.button.callback('👥 Lista Usuarios', 'admin_usuarios'), Markup.button.callback('🎟️ Crear Cupón', 'admin_cupon')],
-            [Markup.button.callback('📢 Difusión Global', 'admin_broadcast'), Markup.button.callback('⏰ Recordatorio', 'admin_reminder')],
-            [Markup.button.callback(db.mantenimiento ? '🟢 Activar Bot' : '🔴 Mantenimiento', 'admin_mantenimiento')],
+            [Markup.button.callback('👥 Lista Usuarios', 'admin_usuarios'), Markup.button.callback('📅 NUEVA CITA', 'admin_cita')],
+            [Markup.button.callback('🗓️ Ver Calendario', 'admin_calendario'), Markup.button.callback('🎟️ Crear Cupón', 'admin_cupon')], // <-- CAMBIO AQUÍ
+            [Markup.button.callback('📢 Difusión', 'admin_broadcast'), Markup.button.callback(db.mantenimiento ? '🟢 Activar Bot' : '🔴 Mantenimiento', 'admin_mantenimiento')],
             [Markup.button.callback('📜 Consentimiento', 'admin_legal'), Markup.button.callback('⬅️ Volver', 'admin_volver')]
         ]));
 });
 
-// ==========================================
-// AQUÍ ESTÁ EL CAMBIO INTEGRADO PARA LISTAR USUARIOS AUTOMÁTICAMENTE
-// ==========================================
 bot.action('admin_usuarios', async (ctx) => {
-    // 1. Recopilamos todos los IDs únicos (de fichas y de puntos)
     const ids = [...new Set([...Object.keys(db.puntos), ...Object.keys(db.fichas)])];
-
-    if (ids.length === 0) {
-        return ctx.answerCbQuery("❌ No hay usuarios registrados aún.");
-    }
-
+    if (ids.length === 0) return ctx.answerCbQuery("❌ No hay usuarios registrados aún.");
     let lista = "👥 **LISTADO DE USUARIOS**\n━━━━━━━━━━━━━━━━━━━━\n\n";
-
     ids.forEach(id => {
-        // Obtenemos el nombre si existe ficha, o ponemos 'Sin Nombre'
-        const nombre = db.fichas[id] && db.fichas[id].nombre 
-            ? db.fichas[id].nombre 
-            : "Usuario (Sin Ficha)";
-            
-        // Formato para copiar fácil: Nombre arriba, ID abajo en monoespacio
+        const nombre = db.fichas[id] && db.fichas[id].nombre ? db.fichas[id].nombre : "Usuario (Sin Ficha)";
         lista += `👤 **Nombre:** ${nombre}\n🆔 **ID:** \`${id}\`\n─────────────────\n`;
     });
-
     await ctx.answerCbQuery();
-    // Enviamos un mensaje nuevo (reply) en lugar de editar, para que la lista sea fácil de leer y copiar
     return ctx.reply(lista, { parse_mode: 'Markdown' });
 });
-// ==========================================
+
+// --- NUEVA LÓGICA DE CALENDARIO ---
+bot.action('admin_calendario', async (ctx) => {
+    if (!db.citas || db.citas.length === 0) {
+        return ctx.answerCbQuery("❌ No hay citas programadas.");
+    }
+
+    // Ordenar citas cronológicamente
+    const citasOrdenadas = db.citas.sort((a, b) => a.fecha - b.fecha);
+    const ahora = Date.now();
+
+    let mensaje = "🗓️ **CALENDARIO DE CITAS**\n━━━━━━━━━━━━━━━━━━━━\n\n";
+    let contador = 0;
+
+    citasOrdenadas.forEach(cita => {
+        // Filtrar citas pasadas hace más de 24h para mantener limpio, o mostrar todas
+        // Aquí mostramos las futuras y las de hoy
+        if (cita.fecha > ahora - (24 * 60 * 60 * 1000)) {
+            const fechaBonita = new Date(cita.fecha).toLocaleString('es-ES', { dateStyle: 'full', timeStyle: 'short' });
+            mensaje += `📌 **${fechaBonita}**\n👤 ${cita.nombre}\n💉 ${cita.descripcion}\n🆔 \`${cita.clienteId}\`\n─────────────────\n`;
+            contador++;
+        }
+    });
+
+    if (contador === 0) mensaje += "✅ No tienes citas próximas.";
+    
+    await ctx.answerCbQuery();
+    return ctx.reply(mensaje, { parse_mode: 'Markdown' });
+});
 
 bot.action('admin_cupon', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('coupon-wizard'); });
 bot.action('admin_broadcast', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('broadcast-wizard'); });
 bot.action('admin_reminder', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('reminder-wizard'); });
+bot.action('admin_cita', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('cita-wizard'); });
 
 bot.action('admin_mantenimiento', (ctx) => {
     db.mantenimiento = !db.mantenimiento;
@@ -521,9 +648,9 @@ bot.action('admin_mantenimiento', (ctx) => {
     ctx.answerCbQuery(`Modo mantenimiento: ${db.mantenimiento ? 'ON' : 'OFF'}`);
     return ctx.editMessageText(`🛠️ **PANEL DE ADMINISTRACIÓN**\nEstado: ${db.mantenimiento ? '🔴 MANTENIMIENTO ACTIVO' : '🟢 BOT OPERATIVO'}`, 
         Markup.inlineKeyboard([
-            [Markup.button.callback('👥 Lista Usuarios', 'admin_usuarios'), Markup.button.callback('🎟️ Crear Cupón', 'admin_cupon')],
-            [Markup.button.callback('📢 Difusión Global', 'admin_broadcast'), Markup.button.callback('⏰ Recordatorio', 'admin_reminder')],
-            [Markup.button.callback(db.mantenimiento ? '🟢 Activar Bot' : '🔴 Mantenimiento', 'admin_mantenimiento')],
+            [Markup.button.callback('👥 Lista Usuarios', 'admin_usuarios'), Markup.button.callback('📅 NUEVA CITA', 'admin_cita')],
+            [Markup.button.callback('🗓️ Ver Calendario', 'admin_calendario'), Markup.button.callback('🎟️ Crear Cupón', 'admin_cupon')],
+            [Markup.button.callback('📢 Difusión', 'admin_broadcast'), Markup.button.callback(db.mantenimiento ? '🟢 Activar Bot' : '🔴 Mantenimiento', 'admin_mantenimiento')],
             [Markup.button.callback('📜 Consentimiento', 'admin_legal'), Markup.button.callback('⬅️ Volver', 'admin_volver')]
         ]));
 });
@@ -574,4 +701,36 @@ bot.hears('💡 Consultar Ideas', (ctx) => ctx.scene.enter('ideas-scene'));
 bot.hears('🧼 Cuidados', (ctx) => ctx.reply('Jabón neutro y crema 3 veces al día.'));
 bot.hears('🎁 Sorteos', (ctx) => ctx.reply('🎁 **SORTEO ACTIVO (05-10 Febrero 2026)**\n━━━━━━━━━━━━━━━━━━━━\n💰 **PREMIO:** 150€\n🎨 **DISEÑO:** A elegir por el cliente\n\n🔗 **ENLACE:** https://t.me/+bAbJXSaI4rE0YzM0', { parse_mode: 'Markdown' }));
 
-bot.launch().then(() => console.log('🚀 Bot Funcionando'));
+// ==========================================
+// 8. CRON JOB: NOTIFICADOR AUTOMÁTICO 24H
+// ==========================================
+setInterval(() => {
+    const ahora = Date.now();
+    const UN_DIA_MS = 24 * 60 * 60 * 1000;
+    
+    db.citas.forEach(cita => {
+        const tiempoRestante = cita.fecha - ahora;
+        
+        if (!cita.avisado24h && tiempoRestante > 0 && tiempoRestante <= UN_DIA_MS && tiempoRestante > (UN_DIA_MS - 600000)) { 
+            
+            bot.telegram.sendMessage(cita.clienteId, 
+                `⏰ **RECORDATORIO 24H**\n━━━━━━━━━━━━━━━━━━━━\nHola ${cita.nombre}, te recordamos que tu cita es MAÑANA:\n\n📅 **${cita.fechaTexto}**\n📍 Nos vemos en el estudio.\n\n⚠️ Si no puedes venir, avisa urgentemente.`
+            ).catch(e => console.log(`Error enviando a cliente ${cita.clienteId}`));
+
+            bot.telegram.sendMessage(MI_ID, 
+                `🔔 **ALERTA CITA MAÑANA**\n\nCliente: ${cita.nombre}\nHora: ${cita.fechaTexto}\nID: \`${cita.clienteId}\``, 
+                { parse_mode: 'Markdown' }
+            ).catch(e => console.log(`Error enviando al admin`));
+
+            cita.avisado24h = true;
+            guardar();
+        }
+    });
+
+    const antes = db.citas.length;
+    db.citas = db.citas.filter(c => (ahora - c.fecha) < (2 * UN_DIA_MS));
+    if (db.citas.length !== antes) guardar();
+
+}, 60 * 1000); 
+
+bot.launch().then(() => console.log('🚀 Bot Funcionando con Calendario'));
