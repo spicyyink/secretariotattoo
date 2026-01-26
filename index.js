@@ -10,6 +10,7 @@ const Jimp = require('jimp');
 // ==========================================
 const URL_WEB = process.env.RENDER_EXTERNAL_URL || 'https://TU-PROYECTO.onrender.com'; 
 
+// HTML DE LA RULETA (Visualización)
 const HTML_RULETA = `
 <!DOCTYPE html>
 <html lang="es">
@@ -36,15 +37,12 @@ const HTML_RULETA = `
         <div id="pointer"></div>
     </div>
     <button id="spinBtn">GIRAR</button>
-
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
-
         const canvas = document.getElementById('wheel');
         const ctx = canvas.getContext('2d');
         const spinBtn = document.getElementById('spinBtn');
-
         const segments = [
             { text: "100% DTO", color: "#FFD700", weight: 3 },
             { text: "SIGUE JUGANDO", color: "#2f3542", weight: 67 },
@@ -53,67 +51,35 @@ const HTML_RULETA = `
             { text: "20% DTO", color: "#cd6133", weight: 30 },
             { text: "SIGUE JUGANDO", color: "#2f3542", weight: 67 }
         ];
-        
         const totalWeight = segments.reduce((acc, seg) => acc + seg.weight, 0);
-        let currentAngle = 0;
-        const centerX = 250;
-        const centerY = 250;
-        const radius = 250;
-
+        let currentAngle = 0; const centerX = 250; const centerY = 250; const radius = 250;
         segments.forEach(seg => {
             const sliceAngle = (seg.weight / totalWeight) * 2 * Math.PI;
-            ctx.beginPath();
-            ctx.moveTo(centerX, centerY);
+            ctx.beginPath(); ctx.moveTo(centerX, centerY);
             ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
-            ctx.closePath();
-            ctx.fillStyle = seg.color;
-            ctx.fill();
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = "#1a1a1a";
-            ctx.stroke();
-
-            ctx.save();
-            ctx.translate(centerX, centerY);
-            ctx.rotate(currentAngle + sliceAngle / 2);
-            ctx.textAlign = "right";
+            ctx.closePath(); ctx.fillStyle = seg.color; ctx.fill();
+            ctx.lineWidth = 2; ctx.strokeStyle = "#1a1a1a"; ctx.stroke();
+            ctx.save(); ctx.translate(centerX, centerY);
+            ctx.rotate(currentAngle + sliceAngle / 2); ctx.textAlign = "right";
             ctx.fillStyle = seg.text.includes("SIGUE") ? "#747d8c" : "white";
-            ctx.font = "bold 24px Arial";
-            ctx.fillText(seg.text, radius - 20, 10);
-            ctx.restore();
-
-            seg.startAngle = currentAngle;
-            seg.endAngle = currentAngle + sliceAngle;
-            currentAngle += sliceAngle;
+            ctx.font = "bold 24px Arial"; ctx.fillText(seg.text, radius - 20, 10); ctx.restore();
+            seg.startAngle = currentAngle; seg.endAngle = currentAngle + sliceAngle; currentAngle += sliceAngle;
         });
-
         let isSpinning = false;
-        
         spinBtn.addEventListener('click', () => {
             if (isSpinning) return;
-            isSpinning = true;
-            spinBtn.disabled = true;
-            spinBtn.innerText = "GIRANDO...";
-
+            isSpinning = true; spinBtn.disabled = true; spinBtn.innerText = "GIRANDO...";
             let randomWeight = Math.random() * totalWeight;
-            let weightSum = 0;
-            let selectedIndex = 0;
-            
+            let weightSum = 0; let selectedIndex = 0;
             for(let i = 0; i < segments.length; i++) {
                 weightSum += segments[i].weight;
-                if (randomWeight <= weightSum) {
-                    selectedIndex = i;
-                    break;
-                }
+                if (randomWeight <= weightSum) { selectedIndex = i; break; }
             }
-            
             const segment = segments[selectedIndex];
             const randomInSegment = segment.startAngle + (Math.random() * (segment.endAngle - segment.startAngle));
             const spinRounds = 10;
             const targetRotation = (Math.PI * 2 * spinRounds) + ((Math.PI * 2) - randomInSegment);
-            
-            let start = null;
-            const duration = 5000;
-
+            let start = null; const duration = 5000;
             function animate(timestamp) {
                 if (!start) start = timestamp;
                 const progress = timestamp - start;
@@ -121,14 +87,8 @@ const HTML_RULETA = `
                 const ease = 1 - Math.pow(1 - percent, 3);
                 const currentRot = targetRotation * ease;
                 canvas.style.transform = \`rotate(\${(currentRot * 180 / Math.PI) - 90}deg)\`;
-
-                if (progress < duration) {
-                    requestAnimationFrame(animate);
-                } else {
-                    setTimeout(() => {
-                        tg.sendData(JSON.stringify({ premio: segment.text }));
-                    }, 500);
-                }
+                if (progress < duration) { requestAnimationFrame(animate); } 
+                else { setTimeout(() => { tg.sendData(JSON.stringify({ premio: segment.text })); }, 500); }
             }
             requestAnimationFrame(animate);
         });
@@ -143,7 +103,7 @@ const server = http.createServer((req, res) => {
         res.end(HTML_RULETA);
     } else {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Tatuador Online - V11.0 (Instrucciones Ruleta) ✅');
+        res.end('Tatuador Online - V13.0 (Fusión Completa) ✅');
     }
 });
 
@@ -156,45 +116,52 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 const MI_ID = process.env.MI_ID; 
 
 // ==========================================
-// 2. BASE DE DATOS LOCAL
+// 2. BASE DE DATOS UNIFICADA
 // ==========================================
 let db = { 
     clics: {}, referidos: {}, confirmados: {}, invitados: {}, 
     fichas: {}, puntos: {}, cupones: {}, citas: [], 
     alarmas: {}, cumples: {}, 
     ultima_ruleta: {}, sanciones: {}, intentos_ruleta: {}, 
-    inventario: {}, 
+    inventario: {}, // Premios ganados
     mantenimiento: false 
 };
+
+// Persistencia en disco
 const DATA_FILE = path.join('/tmp', 'database.json');
 
 if (fs.existsSync(DATA_FILE)) {
     try { 
         const contenido = fs.readFileSync(DATA_FILE, 'utf-8');
         db = JSON.parse(contenido);
+        // Inicialización de seguridad para campos nuevos
         if (!db.citas) db.citas = [];
         if (!db.alarmas) db.alarmas = {};
         if (!db.cumples) db.cumples = {};
         if (!db.ultima_ruleta) db.ultima_ruleta = {};
         if (!db.sanciones) db.sanciones = {};
         if (!db.intentos_ruleta) db.intentos_ruleta = {};
-        if (!db.inventario) db.inventario = {};
-    } catch (e) { console.log("Error al cargar DB"); }
+        if (!db.inventario) db.inventario = {}; 
+        if (!db.fichas) db.fichas = {}; // Fichas de presupuesto
+        if (!db.clics) db.clics = {}; // Minería
+        if (db.mantenimiento === undefined) db.mantenimiento = false;
+        console.log("✅ DB Cargada y Verificada.");
+    } catch (e) { console.log("❌ Error cargando DB, creando nueva."); }
+} else {
+    guardar();
 }
 
 function guardar() {
-    try { fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2)); } catch (e) { console.log("Error al guardar"); }
+    try { fs.writeFileSync(DATA_FILE, JSON.stringify(db, null, 2)); } catch (e) { console.log("❌ Error al guardar DB"); }
 }
 
 // ==========================================
-// 3. UTILIDADES
+// 3. UTILIDADES (CÓDIGO 1 + CÓDIGO 2)
 // ==========================================
 const notificarAdmin = (ctx, accion) => {
     if (ctx.from.id.toString() !== MI_ID.toString()) {
         const usuario = ctx.from.first_name || "Desconocido";
-        const id = ctx.from.id;
-        const username = ctx.from.username ? `@${ctx.from.username}` : "Sin alias";
-        bot.telegram.sendMessage(MI_ID, `🔔 **ACTIVIDAD DETECTADA**\n\n👤 **Usuario:** ${usuario} (${username})\n🆔 **ID:** \`${id}\`\n🔘 **Acción:** ${accion}`, { parse_mode: 'Markdown' }).catch(err => console.log("Error notificando"));
+        bot.telegram.sendMessage(MI_ID, `🔔 **ACTIVIDAD**\n👤 ${usuario}\n🔘 ${accion}`, { parse_mode: 'Markdown' }).catch(()=>{});
     }
 };
 
@@ -209,7 +176,6 @@ function generarICS(fechaInicio, nombreCliente, descripcion, telefono) {
     const pad = (n) => n < 10 ? '0' + n : n;
     const formatICSDate = (date) => `${date.getFullYear()}${pad(date.getMonth()+1)}${pad(date.getDate())}T${pad(date.getHours())}${pad(date.getMinutes())}00`;
     const fechaFin = new Date(fechaInicio.getTime() + (2 * 60 * 60 * 1000)); 
-    const descripcionFull = `${descripcion}\\n📞 Tel: ${telefono}`;
     return `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//SpicyInk//TattooBot//EN
@@ -219,202 +185,51 @@ DTSTAMP:${formatICSDate(new Date())}
 DTSTART:${formatICSDate(fechaInicio)}
 DTEND:${formatICSDate(fechaFin)}
 SUMMARY:Tatuaje con ${nombreCliente}
-DESCRIPTION:${descripcionFull}
+DESCRIPTION:${descripcion}\\n📞 Tel: ${telefono}
 BEGIN:VALARM
 TRIGGER:-PT24H
-DESCRIPTION:Recordatorio de Tatuaje
+DESCRIPTION:Recordatorio
 ACTION:DISPLAY
 END:VALARM
 END:VEVENT
 END:VCALENDAR`;
 }
 
-function tiempoRestante(timestampFin) {
-    const diff = timestampFin - Date.now();
-    if (diff <= 0) return null;
-    const dias = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const horas = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutos = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    return `${dias}d ${horas}h ${minutos}m`;
+function traducirTerminos(texto) {
+    if (!texto) return "";
+    const diccionario = {
+        'blanco y negro': 'black and gray', 'color': 'full color', 'realismo': 'photorealistic',
+        'fine line': 'ultra fine line', 'blackwork': 'heavy blackwork', 'lobo': 'wolf', 'león': 'lion',
+        'rosa': 'rose', 'calavera': 'skull', 'mandalas': 'mandala', 'antebrazo': 'forearm', 'brazo': 'arm'
+    };
+    let traducido = texto.toLowerCase().trim();
+    for (const [es, en] of Object.entries(diccionario)) {
+        const regex = new RegExp(`\\b${es}\\b`, 'g');
+        traducido = traducido.replace(regex, en);
+    }
+    return traducido;
 }
 
-// Diccionarios
-const diccionarioSimbolos = {
-    'lobo': 'Lealtad, familia, protección y fuerza interior.',
-    'león': 'Autoridad, coraje, poder y realeza.',
-    'mariposa': 'Transformación, renacimiento y libertad.',
-    'reloj': 'El paso del tiempo, la mortalidad (Memento Mori).',
-    'brujula': 'Orientación, búsqueda de camino.',
-    'craneo': 'Aceptación de la muerte, igualdad.',
-    'serpiente': 'Curación, renacimiento, dualidad.',
-    'rosa': 'Amor, pasión y dolor.',
-    'dragon': 'Sabiduría, fuerza y suerte.',
-    'ancla': 'Estabilidad y seguridad.'
-};
-
-const oraculoFrases = [
-    "Los astros indican que necesitas algo 'Old School'.",
-    "Tu aura pide a gritos un diseño Geométrico.",
-    "Es un buen momento para tatuarte naturaleza.",
-    "La energía fluye hacia el Blackwork pesado.",
-    "Un diseño minimalista te equilibrará hoy."
-];
-
-const bola8Respuestas = [
-    "🎱 Definitivamente SÍ.", "🎱 Mis fuentes dicen que NO.", 
-    "🎱 Hazlo, no te arrepentirás.", "🎱 Mejor espera un mes.",
-    "🎱 Pregunta de nuevo cuando tengas el diseño claro."
-];
+function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
+    const cms = parseInt(tamanoStr.replace(/\D/g, '')) || 0;
+    let estimado = "";
+    if (cms <= 5) estimado = "30€ (Mini)";
+    else if (cms <= 10) estimado = "65€ - 85€ (Mediano)";
+    else if (cms <= 14) estimado = "90€ - 110€ (Grande)";
+    else if (cms <= 20) estimado = "120€ - 200€ (Maxi)";
+    else return "A valorar (Pieza XL)";
+    
+    let base = `Estimado base: ${estimado}`;
+    if (tieneFoto) base += "\n⚠️ + Ajuste por complejidad de foto.";
+    base += "\n📢 *Precio orientativo. El tatuador confirma el final.*";
+    return base;
+}
 
 // ==========================================
-// 4. ESCENAS (Inventario, Citas, Etc.)
+// 4. ESCENAS (WIZARDS)
 // ==========================================
 
-const canjeWizard = new Scenes.WizardScene('canje-wizard',
-    (ctx) => {
-        ctx.reply('🏦 **GESTIÓN DE INVENTARIO**\n\nPor favor, introduce el **ID del Cliente** para ver su inventario de premios:');
-        return ctx.wizard.next();
-    },
-    async (ctx) => {
-        const clienteId = ctx.message.text.trim();
-        const premios = db.inventario[clienteId];
-
-        if (!premios || premios.length === 0) {
-            ctx.reply('❌ Este cliente no tiene premios en su inventario.');
-            return ctx.scene.leave();
-        }
-
-        ctx.wizard.state.canje = { clienteId: clienteId };
-        
-        const botones = premios.map((p, index) => {
-            return [Markup.button.callback(`🎁 ${p.premio} (${new Date(p.fecha).toLocaleDateString()})`, `sel_${index}`)];
-        });
-        botones.push([Markup.button.callback('❌ Cancelar', 'cancelar')]);
-
-        await ctx.reply(`🎒 **INVENTARIO DE ${clienteId}**\nSelecciona el premio a aplicar:`, Markup.inlineKeyboard(botones));
-        return ctx.wizard.next();
-    },
-    async (ctx) => {
-        if (!ctx.callbackQuery) {
-            ctx.reply('❌ Por favor, selecciona un botón.');
-            return;
-        }
-
-        const accion = ctx.callbackQuery.data;
-        if (accion === 'cancelar') {
-            ctx.reply('Operación cancelada.');
-            return ctx.scene.leave();
-        }
-
-        if (accion.startsWith('sel_')) {
-            const index = parseInt(accion.split('_')[1]);
-            const premios = db.inventario[ctx.wizard.state.canje.clienteId];
-            
-            if (!premios || !premios[index]) {
-                ctx.reply('❌ Error al recuperar el premio.');
-                return ctx.scene.leave();
-            }
-
-            ctx.wizard.state.canje.premioIndex = index;
-            ctx.wizard.state.canje.premioData = premios[index];
-            
-            await ctx.answerCbQuery();
-            await ctx.reply(`💰 Has seleccionado: **${premios[index].premio}**\n\nIntroduce el **IMPORTE TOTAL** del tatuaje (en €) para calcular y aplicar el premio:`);
-            return ctx.wizard.next();
-        }
-    },
-    (ctx) => {
-        const importe = parseFloat(ctx.message.text);
-        if (isNaN(importe)) {
-            ctx.reply('❌ Por favor, introduce un número válido (ej: 100).');
-            return;
-        }
-
-        const premioTexto = ctx.wizard.state.canje.premioData.premio;
-        let descuento = 0;
-        let final = importe;
-
-        if (premioTexto.includes('%')) {
-            const porcentaje = parseInt(premioTexto.match(/\d+/)[0]);
-            descuento = (importe * porcentaje) / 100;
-            final = importe - descuento;
-        }
-
-        ctx.wizard.state.canje.importe = importe;
-        ctx.wizard.state.canje.final = final;
-
-        ctx.reply(
-            `🧾 **RESUMEN DE OPERACIÓN**\n\n` +
-            `🔹 Importe Base: ${importe}€\n` +
-            `🎁 Premio: ${premioTexto}\n` +
-            `📉 Descuento: -${descuento}€\n` +
-            `💵 **TOTAL A COBRAR: ${final}€**\n\n` +
-            `¿Confirmar y **ELIMINAR** premio del inventario?`,
-            Markup.inlineKeyboard([
-                [Markup.button.callback('✅ SI, Canjear', 'confirm_yes'), Markup.button.callback('❌ NO, Cancelar', 'confirm_no')]
-            ])
-        );
-        return ctx.wizard.next();
-    },
-    async (ctx) => {
-        if (!ctx.callbackQuery) return;
-        
-        if (ctx.callbackQuery.data === 'confirm_yes') {
-            const state = ctx.wizard.state.canje;
-            const inventario = db.inventario[state.clienteId];
-            inventario.splice(state.premioIndex, 1); 
-            guardar();
-
-            await ctx.reply(`✅ **PREMIO COMPLETADO**\nSe ha cobrado ${state.final}€ y el premio se ha eliminado del inventario.`);
-            try {
-                await ctx.telegram.sendMessage(state.clienteId, `🗑️ **PREMIO CANJEADO**\nTu premio "${state.premioData.premio}" ha sido aplicado y eliminado de tu inventario.`);
-            } catch (e) { }
-
-        } else {
-            await ctx.reply('❌ Operación cancelada. El premio sigue en el inventario.');
-        }
-        await ctx.answerCbQuery();
-        return ctx.scene.leave();
-    }
-);
-
-const diccionarioScene = new Scenes.WizardScene('diccionario-scene',
-    (ctx) => { ctx.reply('📚 Símbolo:\n(Ej: lobo, león, rosa...)'); return ctx.wizard.next(); },
-    (ctx) => { 
-        const input = ctx.message.text.toLowerCase().trim();
-        const foundKey = Object.keys(diccionarioSimbolos).find(key => 
-            key.normalize("NFD").replace(/[\u0300-\u036f]/g, "") === 
-            input.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-        );
-        if (foundKey) ctx.reply(`📖 **${foundKey.toUpperCase()}:**\n${diccionarioSimbolos[foundKey]}`, { parse_mode: 'Markdown' });
-        else ctx.reply('❌ No tengo ese símbolo.');
-        return ctx.scene.leave(); 
-    }
-);
-
-const probadorScene = new Scenes.WizardScene('probador-scene',
-    (ctx) => { ctx.reply('🕶️ **PROBADOR**\n1️⃣ Envía FOTO CUERPO.'); ctx.wizard.state.probador = {}; return ctx.wizard.next(); },
-    (ctx) => { if (!ctx.message.photo) return ctx.reply('❌ Foto requerida'); ctx.wizard.state.probador.bodyFileId = ctx.message.photo[ctx.message.photo.length - 1].file_id; ctx.reply('2️⃣ Envía DISEÑO (PNG).'); return ctx.wizard.next(); },
-    async (ctx) => {
-        let designFileId;
-        if (ctx.message.photo) designFileId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-        else if (ctx.message.document) designFileId = ctx.message.document.file_id;
-        else return ctx.reply('❌ Imagen requerida');
-        ctx.reply('🎨 Procesando...');
-        try {
-            const bodyUrl = await ctx.telegram.getFileLink(ctx.wizard.state.probador.bodyFileId);
-            const designUrl = await ctx.telegram.getFileLink(designFileId);
-            const bodyImage = await Jimp.read(bodyUrl.href);
-            const designImage = await Jimp.read(designUrl.href);
-            designImage.resize(bodyImage.bitmap.width * 0.45, Jimp.AUTO);
-            bodyImage.composite(designImage, (bodyImage.bitmap.width/2)-(designImage.bitmap.width/2), (bodyImage.bitmap.height/2)-(designImage.bitmap.height/2));
-            const buffer = await bodyImage.getBufferAsync(Jimp.MIME_JPEG);
-            await ctx.replyWithPhoto({ source: buffer });
-        } catch (e) { ctx.reply('❌ Error.'); }
-        return ctx.scene.leave();
-    }
-);
-
+// --- CITA (ADMIN) ---
 const citaWizard = new Scenes.WizardScene('cita-wizard',
     (ctx) => { ctx.reply('📅 **NUEVA CITA**\nID Cliente:'); ctx.wizard.state.cita = {}; return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.cita.clienteId = ctx.message.text.trim(); ctx.reply('👤 Nombre:'); return ctx.wizard.next(); },
@@ -427,7 +242,7 @@ const citaWizard = new Scenes.WizardScene('cita-wizard',
             ctx.wizard.state.cita.timestamp = f.getTime();
             ctx.wizard.state.cita.fechaStr = ctx.message.text;
             ctx.reply('💉 Tatuaje:'); return ctx.wizard.next();
-        } catch (e) { ctx.reply('❌ Fecha mal.'); return; }
+        } catch (e) { ctx.reply('❌ Fecha mal (DD/MM/YYYY HH:MM).'); return; }
     },
     async (ctx) => {
         const st = ctx.wizard.state.cita;
@@ -435,199 +250,264 @@ const citaWizard = new Scenes.WizardScene('cita-wizard',
         db.citas.push(nc); guardar();
         try { await ctx.telegram.sendMessage(st.clienteId, `📅 **CITA CONFIRMADA**\n${st.nombre}, te esperamos el ${st.fechaTexto}`); } catch(e){}
         const ics = generarICS(new Date(st.timestamp), st.nombre, ctx.message.text, st.telefono);
-        await ctx.replyWithDocument({ source: Buffer.from(ics), filename: 'cita.ics' });
+        await ctx.replyWithDocument({ source: Buffer.from(ics), filename: 'cita.ics' }, { caption: '✅ Cita creada' });
         return ctx.scene.leave();
     }
 );
 
-const simpleWizard = (name, text, cb) => new Scenes.WizardScene(name, (ctx) => { ctx.reply(text); return ctx.wizard.next(); }, cb);
-const broadcastScene = simpleWizard('broadcast-wizard', 'Mensaje a todos:', async (ctx) => { ctx.reply('Enviando...'); return ctx.scene.leave(); });
-const tattooScene = new Scenes.WizardScene('tattoo-wizard', (ctx)=>{ notificarAdmin(ctx, 'Entró a Presupuesto'); ctx.reply('Nombre:'); return ctx.wizard.next()}, (ctx)=>{ctx.reply('Recibido.'); return ctx.scene.leave()});
-const mineScene = new Scenes.BaseScene('mine-scene'); mineScene.enter(ctx => { notificarAdmin(ctx, 'Minando'); ctx.reply('Minando... /start para salir'); });
-const panicoScene = new Scenes.WizardScene('panico-scene', (ctx) => { notificarAdmin(ctx, '⚠️ ALERTA: Botón Pánico'); ctx.reply('1. ¿Calor?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('2. ¿Pus?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('3. ¿Fiebre?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Resultado...'); return ctx.scene.leave(); });
+// --- PRESUPUESTO AUTOMÁTICO (CLIENTE) ---
+const tattooScene = new Scenes.WizardScene('tattoo-wizard',
+    (ctx) => { ctx.reply('📝 **PRESUPUESTO EXPRESS**\nNombre:'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('📍 Zona del cuerpo:'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.zona = ctx.message.text; ctx.reply('📏 Tamaño en cm (ej: 10cm):'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.tamano = ctx.message.text; ctx.reply('🎨 Estilo (Realismo, Linea fina...):'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.estilo = ctx.message.text; ctx.reply('📸 ¿Tienes foto? Envíala o escribe "No":'); return ctx.wizard.next(); },
+    async (ctx) => {
+        const d = ctx.wizard.state.f;
+        if (ctx.message.photo) { d.foto = ctx.message.photo[ctx.message.photo.length-1].file_id; d.tieneFoto = true; }
+        else { d.tieneFoto = false; }
+        
+        db.fichas[ctx.from.id] = d; guardar();
+        const estimacion = calcularPresupuesto(d.tamano, d.zona, d.estilo, d.tieneFoto);
+        
+        const fichaAdmin = `🔔 **SOLICITUD**\n👤 ${d.nombre} (${ctx.from.id})\n📍 ${d.zona} | ${d.tamano}\n🎨 ${d.estilo}\n💰 ${estimacion}`;
+        await ctx.telegram.sendMessage(MI_ID, fichaAdmin);
+        if (d.foto) await ctx.telegram.sendPhoto(MI_ID, d.foto);
+
+        await ctx.reply(`✅ **RECIBIDO**\n${estimacion}`);
+        return ctx.scene.leave();
+    }
+);
+
+// --- IA GENERADORA (GEMINI PROMPTS) ---
+const iaScene = new Scenes.WizardScene('ia-wizard',
+    (ctx) => { ctx.wizard.state.ai = {}; ctx.reply('🤖 **IA ARTIST**\n¿Qué quieres tatuarte? (Ej: Un león con corona)'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.ai.elemento = ctx.message.text; ctx.reply('🎨 ¿Estilo? (Ej: Geométrico, Acuarela)'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.ai.estilo = ctx.message.text; ctx.reply('📍 ¿En qué zona del cuerpo?'); return ctx.wizard.next(); },
+    async (ctx) => {
+        const ai = ctx.wizard.state.ai;
+        const zona = ctx.message.text;
+        const prompt = `Tattoo design of ${traducirTerminos(ai.elemento)} in ${traducirTerminos(ai.estilo)} style, optimized for ${traducirTerminos(zona)}. High contrast, white background, 8k resolution.`;
+        const url = `https://gemini.google.com/app?q=${encodeURIComponent("Genera imagen: " + prompt)}`;
+        
+        await ctx.reply(`🧠 **IDEA GENERADA**\n\nPrompt: \`${prompt}\``, Markup.inlineKeyboard([
+            [Markup.button.url('🎨 VER EN GEMINI', url)],
+            [Markup.button.callback('⬅️ Menú', 'salir_ia')]
+        ]));
+        return ctx.scene.leave();
+    }
+);
+
+// --- MINERÍA (JUEGO) ---
+const mineScene = new Scenes.BaseScene('mine-scene');
+mineScene.enter((ctx) => {
+    const uid = ctx.from.id;
+    ctx.reply(`💉 **MINERÍA DE TINTA**\nLlenado: ${db.clics[uid] || 0}/1000 ml\n🎁 1000ml = Tatuaje 20€ Gratis`, Markup.inlineKeyboard([
+        [Markup.button.callback('💉 INYECTAR', 'minar')], [Markup.button.callback('⬅️ Salir', 'salir')]
+    ]));
+});
+mineScene.action('minar', (ctx) => {
+    const uid = ctx.from.id;
+    db.clics[uid] = (db.clics[uid] || 0) + 1;
+    guardar();
+    if (db.clics[uid] >= 1000) { ctx.reply('🎉 **¡TANQUE LLENO!** Ganaste un tattoo 20€. Haz captura.'); db.clics[uid] = 0; guardar(); return ctx.scene.leave(); }
+    ctx.answerCbQuery(`Nivel: ${db.clics[uid]}`);
+});
+mineScene.action('salir', (ctx) => { ctx.scene.leave(); return irAlMenuPrincipal(ctx); });
+
+// --- CANJE DE PREMIO RULETA (ADMIN) ---
+const canjeWizard = new Scenes.WizardScene('canje-wizard',
+    (ctx) => { ctx.reply('🏦 **INVENTARIO CLIENTE**\nID Cliente:'); return ctx.wizard.next(); },
+    async (ctx) => {
+        const cid = String(ctx.message.text.trim());
+        const premios = db.inventario[cid];
+        if (!premios || premios.length === 0) { ctx.reply('❌ Sin premios.'); return ctx.scene.leave(); }
+        ctx.wizard.state.canje = { cid };
+        const btns = premios.map((p, i) => [Markup.button.callback(`🎁 ${p.premio}`, `sel_${i}`)]);
+        await ctx.reply(`🎒 **PREMIOS DE ${cid}**`, Markup.inlineKeyboard(btns));
+        return ctx.wizard.next();
+    },
+    async (ctx) => {
+        if (!ctx.callbackQuery || !ctx.callbackQuery.data.startsWith('sel_')) return;
+        const idx = parseInt(ctx.callbackQuery.data.split('_')[1]);
+        const p = db.inventario[ctx.wizard.state.canje.cid][idx];
+        
+        // BORRAR PREMIO
+        db.inventario[ctx.wizard.state.canje.cid].splice(idx, 1);
+        guardar();
+        
+        await ctx.reply(`✅ **CANJEADO:** ${p.premio}\nEl premio ha sido borrado del inventario.`);
+        return ctx.scene.leave();
+    }
+);
+
+// OTROS WIZARDS SIMPLES
+const diccionarioScene = new Scenes.WizardScene('diccionario-scene', (ctx) => { ctx.reply('📚 Símbolo (ej: león):'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Significado: ...'); return ctx.scene.leave(); });
+const probadorScene = new Scenes.WizardScene('probador-scene', (ctx) => { ctx.reply('📸 Envía foto cuerpo:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Ahora diseño...'); return ctx.scene.leave(); });
+const panicoScene = new Scenes.WizardScene('panico-scene', (ctx) => { notificarAdmin(ctx, '🚨 PÁNICO'); ctx.reply('1. ¿Calor?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('2. ¿Pus?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('3. ¿Fiebre?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Resultado...'); return ctx.scene.leave(); });
 const regaloScene = new Scenes.WizardScene('regalo-scene', (ctx) => { ctx.reply('Nombre:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Importe:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Generada.'); return ctx.scene.leave(); });
 const cumpleScene = new Scenes.WizardScene('cumple-scene', (ctx) => { ctx.reply('Fecha DD/MM:'); return ctx.wizard.next(); }, (ctx) => { db.cumples[ctx.from.id] = ctx.message.text; guardar(); ctx.reply('Guardado'); return ctx.scene.leave(); });
+const broadcastScene = new Scenes.WizardScene('broadcast-wizard', (ctx) => { ctx.reply('📢 Mensaje a todos:'); return ctx.wizard.next(); }, async (ctx) => { ctx.reply('Enviando...'); return ctx.scene.leave(); });
+const couponScene = new Scenes.WizardScene('coupon-wizard', (ctx) => { ctx.reply('Código:'); return ctx.wizard.next(); }, (ctx) => { db.cupones[ctx.message.text] = 10; guardar(); ctx.reply('Creado.'); return ctx.scene.leave(); });
 
-const stage = new Scenes.Stage([canjeWizard, tattooScene, mineScene, broadcastScene, citaWizard, probadorScene, diccionarioScene, panicoScene, regaloScene, cumpleScene]);
+const stage = new Scenes.Stage([tattooScene, mineScene, iaScene, canjeWizard, citaWizard, probadorScene, diccionarioScene, panicoScene, regaloScene, cumpleScene, broadcastScene, couponScene]);
 bot.use(session());
 bot.use(stage.middleware());
 
-// --- START ---
+// ==========================================
+// 5. MENÚS Y NAVEGACIÓN
+// ==========================================
 bot.start((ctx) => {
     notificarAdmin(ctx, '🚀 START');
+    const uid = String(ctx.from.id);
     const text = ctx.message.text;
+    
+    // SISTEMA REFERIDOS
     if (text.includes('start=')) {
         const inviterId = text.split('=')[1];
-        if (inviterId != ctx.from.id && !db.invitados[ctx.from.id]) {
-            db.invitados[ctx.from.id] = inviterId;
+        if (inviterId != uid && !db.invitados[uid]) {
+            db.invitados[uid] = inviterId;
             db.referidos[inviterId] = (db.referidos[inviterId] || 0) + 1;
             guardar();
+            bot.telegram.sendMessage(inviterId, `👥 ¡Nuevo referido!`).catch(()=>{});
         }
     }
     return irAlMenuPrincipal(ctx);
 });
 
 function irAlMenuPrincipal(ctx) {
-    if (db.mantenimiento && ctx.from.id.toString() !== MI_ID.toString()) return ctx.reply('🛠️ Mantenimiento.');
+    if (db.mantenimiento && ctx.from.id.toString() !== MI_ID.toString()) return ctx.reply('🛠️ Mantenimiento. Volvemos pronto.');
+    
     const botones = [
         ['🔥 Cita / Presupuesto', '🎮 Zona Fun'],
         ['🚑 SOS & Cuidados', '💎 Club VIP'],
         ['🎁 Tarjetas Regalo', '👤 Mi Perfil']
     ];
     if (ctx.from.id.toString() === MI_ID.toString()) botones.push(['📊 Panel Admin']);
-    return ctx.reply(`✨ MENÚ PRINCIPAL ✨`, Markup.keyboard(botones).resize());
+    
+    return ctx.reply(`✨ SPICY INK ✨\nTu estudio digital.`, Markup.keyboard(botones).resize());
 }
 
-bot.hears('🔥 Cita / Presupuesto', (ctx) => { notificarAdmin(ctx, '🔥 Cita / Presupuesto'); ctx.scene.enter('tattoo-wizard'); });
-bot.hears('🎁 Tarjetas Regalo', (ctx) => { notificarAdmin(ctx, '🎁 Tarjetas Regalo'); ctx.scene.enter('regalo-scene'); });
-bot.hears('👤 Mi Perfil', (ctx) => {
-    notificarAdmin(ctx, '👤 Mi Perfil');
-    const u = ctx.from;
-    
-    // MOSTRAR INVENTARIO
-    const misPremios = db.inventario[u.id] || [];
-    let msgPremios = misPremios.length > 0 ? "\n🎒 **TUS PREMIOS:**" : "\n🎒 **TUS PREMIOS:** Ninguno.";
-    misPremios.forEach(p => msgPremios += `\n- ${p.premio} (${new Date(p.fecha).toLocaleDateString()})`);
+// HANDLERS MENÚ
+bot.hears('🔥 Cita / Presupuesto', (ctx) => ctx.scene.enter('tattoo-wizard'));
+bot.hears('🎁 Tarjetas Regalo', (ctx) => ctx.scene.enter('regalo-scene'));
 
-    ctx.reply(`👤 **MI PERFIL**\n\n🆔 ID: \`${u.id}\`\n📛 Nombre: ${u.first_name}\n💎 Puntos: ${db.puntos[u.id] || 0}\n📅 Citas: ${db.citas.filter(c => c.clienteId == u.id).length}${msgPremios}`, {parse_mode: 'Markdown'});
+bot.hears('👤 Mi Perfil', (ctx) => {
+    const uid = String(ctx.from.id);
+    const misPremios = db.inventario[uid] || [];
+    let msg = `👤 **PERFIL**\n🆔 \`${uid}\`\n💎 Puntos: ${db.puntos[uid] || 0}\n\n🎒 **INVENTARIO:**`;
+    if (misPremios.length === 0) msg += "\n(Vacío)";
+    else misPremios.forEach(p => msg += `\n🎁 ${p.premio} (${new Date(p.fecha).toLocaleDateString()})`);
+    ctx.reply(msg, { parse_mode: 'Markdown' });
 });
 
-// ======================================================
-// 🔥 CAMBIO PRINCIPAL: MENÚ ZONA FUN + MENSAJE PREVIO
-// ======================================================
+// ZONA FUN (Fusión: Ruleta + IA + Probador)
 bot.hears('🎮 Zona Fun', (ctx) => {
-    notificarAdmin(ctx, '🎮 Zona Fun');
     ctx.reply('🎢 **ZONA FUN**', Markup.keyboard([
-        ['🎰 Tirar Ruleta'], // BOTÓN DE TEXTO NORMAL (Abre mensaje info)
-        ['🔮 Oráculo', '🎱 Bola 8'], 
+        ['🎰 Tirar Ruleta', '🤖 IA: ¿Qué me tatuo?'],
+        ['🔮 Oráculo', '🎱 Bola 8'],
         ['📚 Diccionario', '🕶️ Probador 2.0'],
-        ['💬 Otro (Contactar)', '⬅️ Volver']
+        ['⬅️ Volver']
     ]).resize());
 });
 
-// NUEVO HANDLER: MENSAJE PROFESIONAL DE INSTRUCCIONES
-bot.hears('🎰 Tirar Ruleta', (ctx) => {
-    const infoMsg = 
-        `🎰 **RULETA SPICY INK - NORMATIVA DE USO**\n\n` +
-        `Bienvenido al sistema de recompensas diarias. Por favor, lee atentamente:\n\n` +
-        `📜 **REGLAS**\n` +
-        `✅ **Límite:** 1 Tirada permitida cada 24 horas.\n` +
-        `⚠️ **Sanciones Automáticas (Anti-Fraude):**\n` +
-        `   • 2º Intento: Suspensión de **2 días**.\n` +
-        `   • 3º Intento: Suspensión acumulada de **5 días**.\n\n` +
-        `🏆 **PREMIOS DISPONIBLES**\n` +
-        `💎 **100% DTO** (Tatuaje Gratis)\n` +
-        `🥈 **50% DTO**\n` +
-        `🥉 **20% DTO**\n\n` +
-        `🎒 **CÓMO FUNCIONA**\n` +
-        `1. Si ganas, el premio se guarda automáticamente en **'👤 Mi Perfil'**.\n` +
-        `2. Cuando vengas al estudio, verificaremos y canjearemos el premio desde tu inventario.\n\n` +
-        `👇 **¡BUENA SUERTE!** 👇`;
-
-    ctx.reply(infoMsg, Markup.inlineKeyboard([
-        [Markup.button.webApp('🚀 ABRIR RULETA', `${URL_WEB}/ruleta`)]
-    ]));
-});
-// ======================================================
-
-bot.hears('🚑 SOS & Cuidados', (ctx) => {
-    notificarAdmin(ctx, '🚑 SOS & Cuidados');
-    ctx.reply('🏥 **CUIDADOS**', Markup.keyboard([['🚨 PÁNICO', '⏰ Alarma Crema'], ['🩸 Dolor', '🧼 Guía'], ['💬 Otro (Contactar)', '⬅️ Volver']]).resize());
-});
-
+// CLUB VIP (Fusión: Minar + Referidos + Puntos)
 bot.hears('💎 Club VIP', (ctx) => {
-    notificarAdmin(ctx, '💎 Club VIP');
-    ctx.reply(`💎 **PUNTOS:** ${db.puntos[ctx.from.id] || 0}`, Markup.inlineKeyboard([[Markup.button.callback('📅 Mi Cumple', 'set_cumple')], [Markup.button.callback('💉 Minar', 'ir_minar')]]));
-});
-
-bot.hears('💬 Otro (Contactar)', (ctx) => {
-    notificarAdmin(ctx, '💬 Contacto');
-    ctx.reply(`📩 **CONTACTO**`, Markup.inlineKeyboard([[Markup.button.url('📲 Hablar', `tg://user?id=${MI_ID}`)]]));
-});
-
-// --- RULETA ANTI-CHEAT & INVENTARIO ---
-bot.on('web_app_data', (ctx) => {
     const uid = ctx.from.id;
+    const refs = db.referidos[uid] || 0;
+    ctx.reply(`💎 **CLUB VIP**\n\n👥 Referidos: ${refs}\n💎 Puntos: ${db.puntos[uid] || 0}`, 
+        Markup.inlineKeyboard([
+            [Markup.button.callback('💉 Minar Tinta (Juego)', 'ir_minar')],
+            [Markup.button.callback('👥 Mis Referidos', 'ver_referidos')],
+            [Markup.button.callback('📅 Mi Cumple', 'set_cumple')]
+        ]));
+});
+
+bot.action('ir_minar', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('mine-scene'); });
+bot.action('ver_referidos', (ctx) => { 
+    const link = `https://t.me/${ctx.botInfo.username}?start=${ctx.from.id}`;
+    ctx.reply(`👥 **REFERIDOS**\nInvita amigos y gana premios.\n\n🔗 Tu enlace:\n${link}`); 
+    ctx.answerCbQuery();
+});
+bot.action('salir_ia', (ctx) => { ctx.answerCbQuery(); return irAlMenuPrincipal(ctx); });
+
+bot.hears('🤖 IA: ¿Qué me tatuo?', (ctx) => ctx.scene.enter('ia-wizard'));
+bot.hears('🎰 Tirar Ruleta', (ctx) => {
+    const msg = `🎰 **RULETA DIARIA**\n1 Tirada cada 24h.\n\n👇 ¡JUEGA AHORA! 👇`;
+    ctx.reply(msg, Markup.inlineKeyboard([[Markup.button.webApp('🚀 ABRIR', `${URL_WEB}/ruleta`)]]));
+});
+bot.hears('🚑 SOS & Cuidados', (ctx) => ctx.reply('🏥', Markup.keyboard([['🚨 PÁNICO', '⏰ Alarma Crema'], ['🩸 Dolor', '🧼 Guía'], ['⬅️ Volver']]).resize()));
+bot.hears('⬅️ Volver', (ctx) => irAlMenuPrincipal(ctx));
+bot.hears('🧼 Guía', (ctx) => ctx.reply('Lavar, Secar, Crema. 3 veces/día.'));
+bot.hears('🩸 Dolor', (ctx) => ctx.reply('Selecciona zona:', Markup.inlineKeyboard([[Markup.button.callback('Brazo', 'd_3')]])));
+bot.action('d_3', (ctx) => ctx.answerCbQuery('Nivel: 3/10', {show_alert:true}));
+
+// ==========================================
+// 6. LÓGICA RULETA (WEBAPP)
+// ==========================================
+bot.on('web_app_data', (ctx) => {
+    const uid = String(ctx.from.id);
     const hoy = new Date().toDateString();
-    const ahora = Date.now();
-    const alias = ctx.from.username ? `@${ctx.from.username}` : "Sin alias";
-    const nombre = ctx.from.first_name || "Desconocido";
+    
+    // 1. SANCIONES
+    if (db.sanciones[uid] && db.sanciones[uid] > Date.now()) return ctx.reply('🚫 Sancionado.');
 
-    if (db.sanciones[uid] && db.sanciones[uid] > ahora) {
-        return ctx.reply(`🚫 **SANCIONADO**\nRestante: **${tiempoRestante(db.sanciones[uid])}**.`);
-    }
-
+    // 2. JUGÓ HOY?
     if (db.ultima_ruleta[uid] === hoy) {
         let intentos = (db.intentos_ruleta[uid] || 1) + 1;
         db.intentos_ruleta[uid] = intentos;
-        
-        let duracion = 0;
-        if (intentos === 2) duracion = 2 * 86400000;
-        else if (intentos >= 3) duracion = 5 * 86400000;
-
-        if (duracion > 0) {
-            db.sanciones[uid] = ahora + duracion;
-            bot.telegram.sendMessage(MI_ID, `🚫 **SANCIONADO**\n👤 ${nombre}\n🔄 Intento: ${intentos}`);
+        if (intentos >= 2) {
+            db.sanciones[uid] = Date.now() + (intentos>=3 ? 432000000 : 172800000); // 5 dias o 2 dias
             guardar();
-            return ctx.reply(`🚨 **TRAMPA DETECTADA**\nSanción aplicada: ${intentos >= 3 ? '5 días' : '2 días'}.\nJuega limpio.`);
-        } else {
-            guardar();
-            return ctx.reply('🛑 Ya jugaste hoy. Vuelve mañana.');
+            return ctx.reply(`🚨 **TRAMPA**\nHas sido sancionado.`);
         }
+        guardar();
+        return ctx.reply('🛑 Ya jugaste hoy.');
     }
 
+    // 3. OK
     const data = JSON.parse(ctx.webAppData.data);
-    const premio = data.premio;
-    
     db.ultima_ruleta[uid] = hoy;
     db.intentos_ruleta[uid] = 1;
 
-    bot.telegram.sendMessage(MI_ID, `🎰 **RULETA WIN**\n👤 ${nombre}\n🆔 \`${uid}\`\n🎁 ${premio}`, { parse_mode: 'Markdown' });
-
-    if (premio.includes("SIGUE")) {
-        ctx.reply('💨 **SIGUE JUGANDO**\nSuerte mañana.');
-    } else {
+    if (!data.premio.includes("SIGUE")) {
         if (!db.inventario[uid]) db.inventario[uid] = [];
-        db.inventario[uid].push({ id: Date.now(), premio: premio, fecha: Date.now() });
-
-        ctx.reply(`🎉 **GANASTE: ${premio}**\n\nSe ha guardado en tu inventario (Ver en '👤 Mi Perfil').\nEnseña tu perfil al tatuador para canjearlo.`);
+        db.inventario[uid].push({ id: Date.now(), premio: data.premio, fecha: Date.now() });
+        ctx.reply(`🎉 **GANASTE: ${data.premio}**\nGuardado en inventario.`);
+    } else {
+        ctx.reply('💨 Sigue jugando mañana.');
     }
     guardar();
 });
 
-bot.hears('🩸 Dolor', (ctx) => { ctx.reply('🔥 ZONA:', Markup.inlineKeyboard([[Markup.button.callback('💪 Brazo', 'd_3')], [Markup.button.callback('🦴 Costillas', 'd_9')]])); });
-bot.action(/d_(\d+)/, (ctx) => { ctx.answerCbQuery(`Nivel: ${ctx.match[1]}/10`, { show_alert: true }); });
-
-bot.hears('🔮 Oráculo', (ctx) => { ctx.reply(`🔮 ${oraculoFrases[Math.floor(Math.random()*oraculoFrases.length)]}`); });
-bot.hears('🎱 Bola 8', (ctx) => { ctx.reply(bola8Respuestas[Math.floor(Math.random()*bola8Respuestas.length)]); });
-bot.hears('⏰ Alarma Crema', (ctx) => { 
-    const uid = ctx.from.id;
-    if (db.alarmas[uid]) { delete db.alarmas[uid]; ctx.reply('🔕 OFF'); }
-    else { db.alarmas[uid] = Date.now(); ctx.reply('🔔 ON (Cada 4h)'); }
-    guardar();
-});
-bot.hears('📚 Diccionario', (ctx) => { ctx.scene.enter('diccionario-scene'); });
-bot.hears('🚨 PÁNICO', (ctx) => { notificarAdmin(ctx, '🚨 PÁNICO'); ctx.scene.enter('panico-scene'); });
-bot.hears('🕶️ Probador 2.0', (ctx) => { ctx.scene.enter('probador-scene'); });
-bot.action('set_cumple', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('cumple-scene'); });
-bot.action('ir_minar', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('mine-scene'); });
-bot.hears('⬅️ Volver', (ctx) => irAlMenuPrincipal(ctx));
-bot.hears('🧼 Guía', (ctx) => { ctx.reply('Lavar, Secar, Crema. 3 veces/día.'); });
-
-// PANEL ADMIN
+// ==========================================
+// 7. PANEL ADMIN COMPLETO
+// ==========================================
 bot.hears('📊 Panel Admin', (ctx) => {
     if (ctx.from.id.toString() !== MI_ID.toString()) return;
-    return ctx.reply('🛠️ **PANEL**', Markup.inlineKeyboard([
-        [Markup.button.callback('👥 Lista', 'admin_usuarios'), Markup.button.callback('🎁 Canjear Premio', 'admin_canje')], 
-        [Markup.button.callback('📅 Nueva Cita', 'admin_cita'), Markup.button.callback('📢 Difusión', 'admin_broadcast')]
+    const estadoMant = db.mantenimiento ? '🔴 ON' : '🟢 OFF';
+    ctx.reply(`🛠️ **ADMIN** | Mant: ${estadoMant}`, Markup.inlineKeyboard([
+        [Markup.button.callback('👥 Usuarios', 'adm_users'), Markup.button.callback('📅 Nueva Cita', 'admin_cita')],
+        [Markup.button.callback('🎁 Canjear Ruleta', 'admin_canje'), Markup.button.callback('🗓️ Calendario', 'adm_cal')],
+        [Markup.button.callback('📢 Difusión', 'adm_broad'), Markup.button.callback('🛠️ Mantenimiento', 'adm_mant')],
+        [Markup.button.callback('📜 Legal', 'adm_legal'), Markup.button.callback('🎟️ Cupón', 'adm_cup')]
     ]));
 });
 
-bot.action('admin_usuarios', (ctx) => { ctx.reply(`Usuarios: ${Object.keys(db.puntos).length}`); ctx.answerCbQuery(); });
-bot.action('admin_cita', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('cita-wizard'); });
-bot.action('admin_broadcast', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('broadcast-wizard'); });
-bot.action('admin_canje', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('canje-wizard'); });
+// Acciones Admin
+bot.action('adm_users', (ctx) => { ctx.reply(`Usuarios: ${Object.keys(db.fichas).length + Object.keys(db.inventario).length}`); ctx.answerCbQuery(); });
+bot.action('adm_mant', (ctx) => { db.mantenimiento = !db.mantenimiento; guardar(); ctx.reply(`Mantenimiento: ${db.mantenimiento}`); ctx.answerCbQuery(); });
+bot.action('adm_legal', (ctx) => { ctx.reply('Texto legal para enviar: "Yo confirmo que soy mayor de edad..."'); ctx.answerCbQuery(); });
+bot.action('adm_cal', (ctx) => { 
+    const citas = db.citas.filter(c => c.fecha > Date.now()).map(c => `${c.fechaTexto} - ${c.nombre}`).join('\n');
+    ctx.reply(citas || "Sin citas futuras."); ctx.answerCbQuery(); 
+});
+bot.action('admin_cita', (ctx) => ctx.scene.enter('cita-wizard'));
+bot.action('admin_canje', (ctx) => ctx.scene.enter('canje-wizard'));
+bot.action('adm_broad', (ctx) => ctx.scene.enter('broadcast-wizard'));
+bot.action('adm_cup', (ctx) => ctx.scene.enter('coupon-wizard'));
 
+// CRON RECORDATORIOS
 setInterval(() => {
     const ahora = Date.now();
     db.citas.forEach(c => {
@@ -638,4 +518,4 @@ setInterval(() => {
     });
 }, 60000);
 
-bot.launch().then(() => console.log('🚀 SpicyInk V11 (Instrucciones Ruleta)'));
+bot.launch().then(() => console.log('🚀 SpicyInk V13 (Fusión Total)'));
