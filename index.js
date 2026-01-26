@@ -102,7 +102,7 @@ const server = http.createServer((req, res) => {
         res.end(HTML_RULETA);
     } else {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Tatuador Online - V21.0 (SOS Profesional & Completo) ✅');
+        res.end('Tatuador Online - V23.0 (Datos Comprador Tarjeta) ✅');
     }
 });
 
@@ -122,7 +122,7 @@ let db = {
     fichas: {}, puntos: {}, cupones: {}, citas: [], 
     alarmas: {}, cumples: {}, 
     ultima_ruleta: {}, sanciones: {}, intentos_ruleta: {}, 
-    inventario: {}, tarjetas_regalo: {},
+    inventario: {}, tarjetas_regalo: {}, tarjetas_pendientes: {},
     mantenimiento: false 
 };
 
@@ -144,6 +144,7 @@ if (fs.existsSync(DATA_FILE)) {
         if (db.mantenimiento === undefined) db.mantenimiento = false;
         if (!db.cupones) db.cupones = {};
         if (!db.tarjetas_regalo) db.tarjetas_regalo = {};
+        if (!db.tarjetas_pendientes) db.tarjetas_pendientes = {};
     } catch (e) { console.log("❌ Error cargando DB."); }
 } else {
     guardar();
@@ -252,7 +253,6 @@ function generarCodigoRegalo() {
 // 4. ESCENAS (WIZARDS)
 // ==========================================
 
-// --- 🔥 NUEVA ESCENA PROFESIONAL: EVALUADOR DE INFECCIÓN (PÁNICO) ---
 const panicoScene = new Scenes.WizardScene('panico-scene',
     (ctx) => {
         ctx.wizard.state.sintomas = 0;
@@ -307,7 +307,6 @@ const panicoScene = new Scenes.WizardScene('panico-scene',
         return ctx.scene.leave();
     }
 );
-// -----------------------------------------------------------
 
 const citaWizard = new Scenes.WizardScene('cita-wizard',
     (ctx) => { ctx.reply('📅 **NUEVA CITA**\nID Cliente:'); ctx.wizard.state.cita = {}; return ctx.wizard.next(); },
@@ -627,12 +626,17 @@ const canjeWizard = new Scenes.WizardScene('canje-wizard',
     }
 );
 
+// ==================================================================
+// 🔥 MODIFICADO: ESCENA DE TARJETA REGALO CON APROBACIÓN + DATOS COMPRADOR
+// ==================================================================
 const regaloScene = new Scenes.WizardScene('regalo-scene',
+    // 1. Nombre Beneficiario
     (ctx) => {
-        ctx.wizard.state.card = {};
+        ctx.wizard.state.card = { creadorId: ctx.from.id };
         ctx.reply('🎁 **CREAR TARJETA REGALO**\n━━━━━━━━━━━━━━━━━━━━\n¿Para quién es esta tarjeta? Escribe su nombre:');
         return ctx.wizard.next();
     },
+    // 2. Importe
     (ctx) => {
         ctx.wizard.state.card.para = ctx.message.text;
         ctx.reply('💰 Selecciona el importe del regalo:', 
@@ -643,6 +647,7 @@ const regaloScene = new Scenes.WizardScene('regalo-scene',
             ]));
         return ctx.wizard.next();
     },
+    // 3. Procesar importe + Pedir Dedicatoria
     (ctx) => {
         if (ctx.callbackQuery) {
             const selection = ctx.callbackQuery.data;
@@ -667,6 +672,7 @@ const regaloScene = new Scenes.WizardScene('regalo-scene',
             return ctx.wizard.next();
         }
     },
+    // 4. Procesar Dedicatoria + PEDIR TELÉFONO DEL COMPRADOR (NUEVO)
     (ctx) => {
         if (ctx.callbackQuery && ctx.callbackQuery.data === 'skip_msg') {
             ctx.wizard.state.card.message = "¡Disfrútalo!";
@@ -674,16 +680,24 @@ const regaloScene = new Scenes.WizardScene('regalo-scene',
         } else {
             ctx.wizard.state.card.message = ctx.message.text;
         }
+        
+        ctx.reply('📞 Para poder contactarte si hay algún problema con el pago, por favor escribe **TU número de teléfono**:');
+        return ctx.wizard.next();
+    },
+    // 5. Procesar Teléfono + Resumen
+    (ctx) => {
+        ctx.wizard.state.card.buyerPhone = ctx.message.text;
 
         const c = ctx.wizard.state.card;
-        const resumen = `📋 **RESUMEN TARJETA**\n━━━━━━━━━━━━━━━━━━━━\n👤 **Para:** ${c.para}\n💰 **Importe:** ${c.amount}€\n✉️ **Mensaje:** "${c.message}"\n━━━━━━━━━━━━━━━━━━━━\n¿Todo correcto?`;
+        const resumen = `📋 **RESUMEN TARJETA**\n━━━━━━━━━━━━━━━━━━━━\n👤 **Para:** ${c.para}\n💰 **Importe:** ${c.amount}€\n✉️ **Mensaje:** "${c.message}"\n📞 **Tu Teléfono:** ${c.buyerPhone}\n━━━━━━━━━━━━━━━━━━━━\n¿Todo correcto?`;
 
         ctx.reply(resumen, Markup.inlineKeyboard([
-            [Markup.button.callback('✅ Confirmar y Generar', 'confirm_card')],
+            [Markup.button.callback('💳 Realizar Pago', 'start_payment')],
             [Markup.button.callback('❌ Cancelar', 'cancel_card')]
         ]));
         return ctx.wizard.next();
     },
+    // 6. Envío al Admin (Con todos los datos del comprador)
     async (ctx) => {
         if (!ctx.callbackQuery) return;
         if (ctx.callbackQuery.data === 'cancel_card') {
@@ -692,22 +706,82 @@ const regaloScene = new Scenes.WizardScene('regalo-scene',
             return ctx.scene.leave();
         }
 
-        const c = ctx.wizard.state.card;
-        const codigo = generarCodigoRegalo();
-        const now = Date.now();
+        if (ctx.callbackQuery.data === 'start_payment') {
+            const c = ctx.wizard.state.card;
+            
+            // Mensaje al Usuario
+            ctx.reply(`⌛ **SOLICITUD ENVIADA**\n\nPor favor, realiza el pago de **${c.amount}€** por Bizum/Transferencia.\n\nEn cuanto el administrador verifique el pago, recibirás tu tarjeta regalo aquí mismo.`);
+            
+            // Datos del comprador para el Admin
+            const buyerName = ctx.from.first_name || "Sin nombre";
+            const buyerUser = ctx.from.username ? `@${ctx.from.username}` : "Sin alias";
+            
+            const solicitudId = `PAY-${Date.now()}`;
+            if (!db.tarjetas_pendientes) db.tarjetas_pendientes = {};
+            db.tarjetas_pendientes[solicitudId] = { ...c }; // Guardamos también el teléfono que está en 'c'
+            guardar();
 
-        db.tarjetas_regalo[codigo] = { ...c, creador: ctx.from.id, fecha: now, canjeado: false };
-        guardar();
+            const msgAdmin = 
+`💸 **NUEVO PAGO PENDIENTE (TARJETA REGALO)**
+━━━━━━━━━━━━━━━━━━━━
+👤 **Comprador:** ${buyerName}
+🔗 **Usuario:** ${buyerUser}
+📞 **Teléfono:** ${c.buyerPhone}
+🆔 **ID Telegram:** \`${c.creadorId}\`
 
-        const tarjetaFinal = 
+🎁 **Para:** ${c.para}
+💰 **Importe:** ${c.amount}€
+
+¿Confirmas que has recibido el dinero?`;
+
+            await ctx.telegram.sendMessage(MI_ID, msgAdmin, Markup.inlineKeyboard([
+                [Markup.button.callback('✅ SI, Pago Recibido', `approve_pay_${solicitudId}`)],
+                [Markup.button.callback('❌ NO, Rechazar', `reject_pay_${solicitudId}`)]
+            ]));
+            
+            return ctx.scene.leave();
+        }
+    }
+);
+
+// --- HANDLERS PARA APROBACIÓN DE PAGO (ADMIN) ---
+bot.action(/^approve_pay_(.+)$/, async (ctx) => {
+    const solicitudId = ctx.match[1];
+    const datos = db.tarjetas_pendientes ? db.tarjetas_pendientes[solicitudId] : null;
+
+    if (!datos) return ctx.answerCbQuery('❌ Error: Solicitud no encontrada o ya procesada.');
+
+    // Generar Código Final
+    const codigo = generarCodigoRegalo();
+    const now = Date.now();
+
+    // Guardar Tarjeta Real
+    db.tarjetas_regalo[codigo] = { 
+        para: datos.para, 
+        amount: datos.amount, 
+        message: datos.message, 
+        creador: datos.creadorId, 
+        fecha: now, 
+        canjeado: false 
+    };
+    
+    // Limpiar pendiente
+    delete db.tarjetas_pendientes[solicitudId];
+    guardar();
+
+    // Avisar Admin
+    await ctx.editMessageText(`✅ **PAGO ACEPTADO**\nTarjeta generada: \`${codigo}\``);
+
+    // Enviar Tarjeta al Usuario
+    const tarjetaFinal = 
 `✨ **TARJETA REGALO SPICY INK** ✨
 ━━━━━━━━━━━━━━━━━━━━
 
-👤 **Para:** ${c.para}
-💰 **Valor:** ${c.amount}€
+👤 **Para:** ${datos.para}
+💰 **Valor:** ${datos.amount}€
 
 ✉️ **Dedicatoria:**
-"${c.message}"
+"${datos.message}"
 
 🎟️ **CÓDIGO DE CANJE:**
 \`${codigo}\`
@@ -715,14 +789,30 @@ const regaloScene = new Scenes.WizardScene('regalo-scene',
 ━━━━━━━━━━━━━━━━━━━━
 *Presenta este código en el estudio para canjear tu regalo.*`;
 
-        await ctx.reply(tarjetaFinal, { parse_mode: 'Markdown' });
-        ctx.answerCbQuery('¡Tarjeta generada con éxito!');
-        return ctx.scene.leave();
+    try {
+        await ctx.telegram.sendMessage(datos.creadorId, tarjetaFinal, { parse_mode: 'Markdown' });
+        await ctx.telegram.sendMessage(datos.creadorId, "✅ **¡Pago confirmado!** Aquí tienes tu tarjeta regalo.");
+    } catch (e) {}
+});
+
+bot.action(/^reject_pay_(.+)$/, async (ctx) => {
+    const solicitudId = ctx.match[1];
+    const datos = db.tarjetas_pendientes ? db.tarjetas_pendientes[solicitudId] : null;
+
+    if (datos) {
+        try {
+            await ctx.telegram.sendMessage(datos.creadorId, "❌ **SOLICITUD RECHAZADA**\nEl pago no ha podido ser verificado. Contacta con el administrador si ha sido un error.");
+        } catch (e) {}
+        delete db.tarjetas_pendientes[solicitudId];
+        guardar();
     }
-);
+    await ctx.editMessageText('❌ **SOLICITUD RECHAZADA**');
+});
+// ==================================================================
 
 const diccionarioScene = new Scenes.WizardScene('diccionario-scene', (ctx) => { ctx.reply('📚 Símbolo:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Significado: ...'); return ctx.scene.leave(); });
 const probadorScene = new Scenes.WizardScene('probador-scene', (ctx) => { ctx.reply('📸 Envía foto cuerpo:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Ahora diseño...'); return ctx.scene.leave(); });
+const panicoScene = new Scenes.WizardScene('panico-scene', (ctx) => { notificarAdmin(ctx, '🚨 PÁNICO'); ctx.reply('1. ¿Calor?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('2. ¿Pus?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('3. ¿Fiebre?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Resultado...'); return ctx.scene.leave(); });
 const cumpleScene = new Scenes.WizardScene('cumple-scene', (ctx) => { ctx.reply('Fecha DD/MM:'); return ctx.wizard.next(); }, (ctx) => { db.cumples[ctx.from.id] = ctx.message.text; guardar(); ctx.reply('Guardado'); return ctx.scene.leave(); });
 
 const stage = new Scenes.Stage([tattooScene, mineScene, iaScene, canjeWizard, citaWizard, probadorScene, diccionarioScene, panicoScene, regaloScene, cumpleScene, broadcastScene, couponScene, reminderScene]);
@@ -749,6 +839,7 @@ bot.start((ctx) => {
     return irAlMenuPrincipal(ctx);
 });
 
+// 🔥 MENÚ PRINCIPAL
 function irAlMenuPrincipal(ctx) {
     if (db.mantenimiento && ctx.from.id.toString() !== MI_ID.toString()) return ctx.reply('🛠️ Mantenimiento. Volvemos pronto.');
     
@@ -785,6 +876,7 @@ bot.hears('👤 Mi Perfil', (ctx) => {
     ctx.reply(msg, { parse_mode: 'Markdown' });
 });
 
+// ZONA FUN
 bot.hears('🎮 Zona Fun', (ctx) => {
     ctx.reply('🎢 **ZONA FUN**', Markup.keyboard([
         ['🎰 Tirar Ruleta', '🤖 IA: ¿Qué me tatuo?'],
@@ -795,6 +887,7 @@ bot.hears('🎮 Zona Fun', (ctx) => {
 
 bot.action('nueva_ia', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('ia-wizard'); });
 
+// CLUB VIP
 bot.hears('💎 Club VIP', (ctx) => {
     const uid = ctx.from.id;
     const refs = db.referidos[uid] || 0;
@@ -819,107 +912,32 @@ bot.hears('🎰 Tirar Ruleta', (ctx) => {
     ctx.reply(msg, Markup.inlineKeyboard([[Markup.button.webApp('🚀 ABRIR', `${URL_WEB}/ruleta`)]]));
 });
 
-// 🔥 MODIFICACIÓN: MENÚ SOS PROFESIONAL COMPLEJO
+// SOS & CUIDADOS
 bot.hears('🚑 SOS & Cuidados', (ctx) => {
-    const menuSOS = Markup.inlineKeyboard([
-        [Markup.button.callback('🚨 EVALUADOR DE INFECCIÓN (IA)', 'sos_panico')], // Botón Grande de Urgencia
-        [Markup.button.callback('🩸 Escala de Dolor', 'sos_dolor'), Markup.button.callback('🧼 Guía de Curación', 'sos_guia')],
-        [Markup.button.callback('⏰ Alarma Curas', 'sos_alarma'), Markup.button.callback('❓ Preguntas Frecuentes', 'sos_faq')],
+    ctx.reply('🏥 **CUIDADOS**', Markup.inlineKeyboard([
+        [Markup.button.callback('🚨 PÁNICO', 'sos_panico'), Markup.button.callback('⏰ Alarma Crema', 'sos_alarma')],
+        [Markup.button.callback('🩸 Dolor', 'sos_dolor'), Markup.button.callback('🧼 Guía', 'sos_guia')],
         [Markup.button.callback('⬅️ Volver', 'sos_volver')]
-    ]);
-    
-    ctx.reply(`🏥 **CENTRO DE CUIDADOS SPICY INK**\n━━━━━━━━━━━━━━━━━━━━\nSelecciona una opción para recibir asistencia inmediata:`, menuSOS);
+    ]));
 });
 
-// ACCIONES SOS MEJORADAS
 bot.action('sos_panico', (ctx) => { ctx.answerCbQuery(); ctx.scene.enter('panico-scene'); });
-
-bot.action('sos_dolor', (ctx) => {
-    ctx.answerCbQuery();
-    ctx.reply('🩸 **MAPA DE DOLOR INTERACTIVO**\nSelecciona una zona para ver el nivel de dolor (1-10):', 
-        Markup.inlineKeyboard([
-            [Markup.button.callback('💀 Costillas (9/10)', 'pain_ribs'), Markup.button.callback('🦴 Esternón (8/10)', 'pain_sternum')],
-            [Markup.button.callback('🦶 Empeine (8/10)', 'pain_foot'), Markup.button.callback('🦵 Rodilla (9/10)', 'pain_knee')],
-            [Markup.button.callback('💪 Brazo Interior (4/10)', 'pain_arm'), Markup.button.callback('🦵 Muslo (3/10)', 'pain_thigh')],
-            [Markup.button.callback('🔙 Volver', 'sos_back_menu')]
-        ])
-    );
-});
-
-// Respuestas del Mapa de Dolor
-bot.action('pain_ribs', (ctx) => ctx.answerCbQuery('🔥 NIVEL 9/10: Muy doloroso. La vibración en el hueso es intensa.', {show_alert: true}));
-bot.action('pain_sternum', (ctx) => ctx.answerCbQuery('🔥 NIVEL 8/10: Dolor agudo y sensación de "corte".', {show_alert: true}));
-bot.action('pain_foot', (ctx) => ctx.answerCbQuery('🔥 NIVEL 8/10: Piel fina y muchos huesos. Pica bastante.', {show_alert: true}));
-bot.action('pain_knee', (ctx) => ctx.answerCbQuery('🔥 NIVEL 9/10: Zonas con muchos nervios. Dolor punzante.', {show_alert: true}));
-bot.action('pain_arm', (ctx) => ctx.answerCbQuery('✅ NIVEL 4/10: Muy llevadero. Ideal para primer tattoo.', {show_alert: true}));
-bot.action('pain_thigh', (ctx) => ctx.answerCbQuery('✅ NIVEL 3/10: Zona con músculo. Molestia leve.', {show_alert: true}));
-
-bot.action('sos_guia', (ctx) => {
-    ctx.answerCbQuery();
-    const guiaTexto = 
-`🧼 **GUÍA DE CURACIÓN PROFESIONAL**
-━━━━━━━━━━━━━━━━━━━━
-
-1️⃣ **FASE 1: PROTECCIÓN (Días 1-3)**
-• Mantén el film/apósito el tiempo que te haya dicho el tatuador.
-• Al quitarlo, lava suavemente con agua tibia y **jabón neutro**.
-• Seca a toquecitos con papel de cocina (NO toallas).
-• Aplica una capa *muy fina* de crema específica.
-
-2️⃣ **FASE 2: PELADO (Días 4-10)**
-• El tatuaje empezará a pelarse y picar. **¡NO TE RASQUES!**
-• Si pica, dale palmadas suaves.
-• Sigue hidratando 2-3 veces al día.
-
-3️⃣ **FASE 3: ASENTAMIENTO (Días 15+)**
-• La piel se regenera completamente.
-• Usa siempre **protector solar 50+** si lo expones al sol.
-
-🚫 **PROHIBIDO DURANTE 15 DÍAS:**
-❌ Sol directo, playa y piscina.
-❌ Gimnasio (sudor excesivo) los primeros 3-4 días.
-❌ Ropa ajustada de licra o lana sobre el tattoo.`;
-    
-    ctx.reply(guiaTexto, { parse_mode: 'Markdown' });
-});
-
 bot.action('sos_alarma', (ctx) => { 
     const uid = String(ctx.from.id);
-    if (db.alarmas[uid]) { 
-        delete db.alarmas[uid]; 
-        ctx.reply('🔕 **ALARMA DESACTIVADA**\nYa no recibirás recordatorios.'); 
-    } else { 
-        db.alarmas[uid] = Date.now(); 
-        ctx.reply('🔔 **ALARMA ACTIVADA**\nTe recordaré lavarte y echarte crema cada 4 horas.'); 
-    }
+    if (db.alarmas[uid]) { delete db.alarmas[uid]; ctx.reply('🔕 Alarma OFF'); }
+    else { db.alarmas[uid] = Date.now(); ctx.reply('🔔 Alarma ON (Cada 4h)'); }
     ctx.answerCbQuery(); 
 });
-
-bot.action('sos_faq', (ctx) => {
-    ctx.answerCbQuery();
-    const faq = 
-`❓ **PREGUNTAS FRECUENTES**
-━━━━━━━━━━━━━━━━━━━━
-**Q: ¿Es normal que suelte tinta?**
-A: Sí, durante las primeras 24-48h es normal manchar la ropa o las sábanas. Es plasma con tinta sobrante.
-
-**Q: ¿Puedo beber alcohol?**
-A: Evítalo las primeras 24h, ya que diluye la sangre y puedes sangrar más.
-
-**Q: ¿Me ha salido un grano en el tattoo?**
-A: Puede ser exceso de crema. Deja de echar crema 1 día y deja que seque.`;
-    ctx.reply(faq, {parse_mode: 'Markdown'});
-});
-
-bot.action('sos_back_menu', (ctx) => { ctx.editMessageText('🏥 **CUIDADOS**', Markup.inlineKeyboard([
-        [Markup.button.callback('🚨 EVALUADOR DE INFECCIÓN (IA)', 'sos_panico')],
-        [Markup.button.callback('🩸 Escala de Dolor', 'sos_dolor'), Markup.button.callback('🧼 Guía de Curación', 'sos_guia')],
-        [Markup.button.callback('⏰ Alarma Curas', 'sos_alarma'), Markup.button.callback('❓ Preguntas Frecuentes', 'sos_faq')],
-        [Markup.button.callback('⬅️ Volver', 'sos_volver')]
-    ])); 
-});
-
+bot.action('sos_dolor', (ctx) => { ctx.reply('Selecciona zona:', Markup.inlineKeyboard([[Markup.button.callback('Brazo', 'd_3')]])); ctx.answerCbQuery(); });
+bot.action('sos_guia', (ctx) => { ctx.reply('Lavar, Secar, Crema. 3 veces/día.'); ctx.answerCbQuery(); });
 bot.action('sos_volver', (ctx) => { ctx.deleteMessage(); irAlMenuPrincipal(ctx); }); 
+bot.action('d_3', (ctx) => ctx.answerCbQuery('Nivel: 3/10', {show_alert:true}));
+
+
+bot.hears('⬅️ Volver', (ctx) => irAlMenuPrincipal(ctx));
+bot.hears('🧼 Guía', (ctx) => ctx.reply('Lavar, Secar, Crema. 3 veces/día.'));
+bot.hears('🩸 Dolor', (ctx) => ctx.reply('Selecciona zona:', Markup.inlineKeyboard([[Markup.button.callback('Brazo', 'd_3')]])));
+
 
 bot.on('web_app_data', (ctx) => {
     const uid = String(ctx.from.id);
@@ -953,9 +971,12 @@ bot.on('web_app_data', (ctx) => {
     guardar();
 });
 
+// 🔥 PANEL ADMIN
 bot.hears('📊 Panel Admin', (ctx) => {
     if (ctx.from.id.toString() !== MI_ID.toString()) return;
+    
     const botonMant = db.mantenimiento ? '🟢 Desactivar Mantenimiento' : '🔴 Mantenimiento';
+
     ctx.reply('🛠️ **PANEL DE ADMINISTRACIÓN**', Markup.inlineKeyboard([
         [Markup.button.callback('👥 Lista Usuarios', 'adm_users'), Markup.button.callback('🎟️ Crear Cupón', 'adm_cup')],
         [Markup.button.callback('📢 Difusión Global', 'adm_broad'), Markup.button.callback('⏰ Recordatorio', 'adm_rem')],
@@ -975,6 +996,7 @@ bot.action('adm_cup', (ctx) => ctx.scene.enter('coupon-wizard'));
 bot.action('adm_rem', (ctx) => ctx.scene.enter('reminder-wizard'));
 bot.action('admin_cita', (ctx) => ctx.scene.enter('cita-wizard'));
 
+// 🔥 INVENTARIO DE CITAS
 bot.action('adm_citas_list', (ctx) => {
     const now = Date.now();
     const citasFuturas = db.citas.filter(c => c.fecha > now).sort((a, b) => a.fecha - b.fecha);
@@ -987,15 +1009,26 @@ bot.action('adm_citas_list', (ctx) => {
     ctx.answerCbQuery();
 });
 
+// CRON: Recordatorios 24H (Para Cliente y Admin)
 setInterval(() => {
     const ahora = Date.now();
+    const UN_DIA = 86400000;
+
     db.citas.forEach(c => {
-        if (!c.avisado24h && (c.fecha - ahora) > 0 && (c.fecha - ahora) <= 86400000) {
-            bot.telegram.sendMessage(c.clienteId, `⏰ Mañana cita: ${c.fechaTexto}`).catch(()=>{});
-            bot.telegram.sendMessage(MI_ID, `🔔 **ALERTA 24H**\nCita mañana: ${c.nombre}`).catch(()=>{});
-            c.avisado24h = true; guardar();
+        const diff = c.fecha - ahora;
+        
+        // Si falta menos de 24h (y más de 23h 50m para no repetir) y no se ha avisado
+        if (!c.avisado24h && diff > 0 && diff <= UN_DIA && diff > (UN_DIA - 600000)) {
+            // Aviso al Cliente
+            bot.telegram.sendMessage(c.clienteId, `⏰ **RECORDATORIO 24H**\nHola ${c.nombre}, tu cita es mañana a las ${c.fechaTexto}.`).catch(()=>{});
+            
+            // Aviso al Admin (Tú)
+            bot.telegram.sendMessage(MI_ID, `🔔 **ALERTA 24H**\nMañana tienes cita con ${c.nombre} a las ${c.fechaTexto}.`).catch(()=>{});
+            
+            c.avisado24h = true; 
+            guardar();
         }
     });
 }, 60000); 
 
-bot.launch().then(() => console.log('🚀 SpicyInk V21 (SOS Profesional)'));
+bot.launch().then(() => console.log('🚀 SpicyInk V23 (Final - Datos Comprador)'));
