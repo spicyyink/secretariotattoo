@@ -404,7 +404,7 @@ const regaloScene = new Scenes.WizardScene('regalo-scene',
         const imp = parseInt(ctx.message.text);
         if(isNaN(imp)) return ctx.reply('❌ Número válido:');
         ctx.wizard.state.amount = imp;
-        ctx.reply('✉️ Dedicatoria:'); return ctx.wizard.next();
+        ctx.reply('✉️ Puedes Poner Dedicatoria:'); return ctx.wizard.next();
     },
     (ctx) => {
         ctx.wizard.state.msg = ctx.message.text;
@@ -427,7 +427,7 @@ const regaloScene = new Scenes.WizardScene('regalo-scene',
             [Markup.button.callback('✅ Aceptar', `ok_${pid}`), Markup.button.callback('❌ Rechazar', `no_${pid}`)]
         ]));
 
-        ctx.reply('⌛ **SOLICITUD ENVIADA**\nRealiza el pago por Bizum. Cuando el admin lo verifique, recibirás el código.');
+        ctx.reply('⌛ **SOLICITUD ENVIADA**\nEn breves se pondrá en contacto el tatuador, una vez recibido el pago, recibes un codigo a canjear.');
         return ctx.scene.leave();
     }
 );
