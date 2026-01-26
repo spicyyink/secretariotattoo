@@ -6,11 +6,151 @@ const path = require('path');
 const Jimp = require('jimp');
 
 // ==========================================
-// 1. CONFIGURACIÓN DEL SERVIDOR
+// 1. CONFIGURACIÓN DEL SERVIDOR Y WEB APP
 // ==========================================
+
+// TU URL REAL DE RENDER (Configurada para la Ruleta)
+const URL_WEB = 'https://spicybot-44tv.onrender.com'; 
+
+// --- HTML DE LA RULETA (Visualización) ---
+const HTML_RULETA = `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Ruleta Spicy Ink</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body { background-color: #1a1a1a; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
+        #wheel-container { position: relative; width: 300px; height: 300px; }
+        canvas { width: 100%; height: 100%; transform: rotate(-90deg); }
+        #pointer { position: absolute; top: 50%; right: -15px; transform: translateY(-50%); width: 0; height: 0; border-top: 15px solid transparent; border-bottom: 15px solid transparent; border-right: 30px solid white; }
+        button { margin-top: 30px; padding: 15px 40px; font-size: 20px; font-weight: bold; background: #ff4757; color: white; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 5px 15px rgba(255, 71, 87, 0.4); transition: transform 0.2s; }
+        button:active { transform: scale(0.95); }
+        button:disabled { background: #555; cursor: not-allowed; }
+        h2 { margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
+    </style>
+</head>
+<body>
+    <h2>🍀 Suerte 🍀</h2>
+    <div id="wheel-container">
+        <canvas id="wheel" width="500" height="500"></canvas>
+        <div id="pointer"></div>
+    </div>
+    <button id="spinBtn">GIRAR</button>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        const canvas = document.getElementById('wheel');
+        const ctx = canvas.getContext('2d');
+        const spinBtn = document.getElementById('spinBtn');
+
+        const segments = [
+            { text: "100% DTO", color: "#FFD700", weight: 3 },  // Oro
+            { text: "SIGUE JUGANDO", color: "#2f3542", weight: 67 }, // Oscuro
+            { text: "50% DTO", color: "#a4b0be", weight: 20 },  // Plata
+            { text: "SIGUE JUGANDO", color: "#2f3542", weight: 67 }, // Oscuro
+            { text: "20% DTO", color: "#cd6133", weight: 30 },  // Bronce
+            { text: "SIGUE JUGANDO", color: "#2f3542", weight: 67 }  // Oscuro
+        ];
+        
+        const totalWeight = segments.reduce((acc, seg) => acc + seg.weight, 0);
+        let currentAngle = 0;
+        const centerX = 250;
+        const centerY = 250;
+        const radius = 250;
+
+        segments.forEach(seg => {
+            const sliceAngle = (seg.weight / totalWeight) * 2 * Math.PI;
+            
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
+            ctx.closePath();
+            ctx.fillStyle = seg.color;
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "#1a1a1a";
+            ctx.stroke();
+
+            ctx.save();
+            ctx.translate(centerX, centerY);
+            ctx.rotate(currentAngle + sliceAngle / 2);
+            ctx.textAlign = "right";
+            ctx.fillStyle = seg.text.includes("SIGUE") ? "#747d8c" : "white";
+            ctx.font = "bold 24px Arial";
+            ctx.fillText(seg.text, radius - 20, 10);
+            ctx.restore();
+
+            seg.startAngle = currentAngle;
+            seg.endAngle = currentAngle + sliceAngle;
+            currentAngle += sliceAngle;
+        });
+
+        let isSpinning = false;
+        
+        spinBtn.addEventListener('click', () => {
+            if (isSpinning) return;
+            isSpinning = true;
+            spinBtn.disabled = true;
+            spinBtn.innerText = "GIRANDO...";
+
+            let randomWeight = Math.random() * totalWeight;
+            let weightSum = 0;
+            let selectedIndex = 0;
+            
+            for(let i = 0; i < segments.length; i++) {
+                weightSum += segments[i].weight;
+                if (randomWeight <= weightSum) {
+                    selectedIndex = i;
+                    break;
+                }
+            }
+            
+            const segment = segments[selectedIndex];
+            const randomInSegment = segment.startAngle + (Math.random() * (segment.endAngle - segment.startAngle));
+            const spinRounds = 10;
+            const targetRotation = (Math.PI * 2 * spinRounds) + ((Math.PI * 2) - randomInSegment);
+            
+            let start = null;
+            const duration = 5000; 
+
+            function animate(timestamp) {
+                if (!start) start = timestamp;
+                const progress = timestamp - start;
+                const percent = Math.min(progress / duration, 1);
+                const ease = 1 - Math.pow(1 - percent, 3);
+                
+                const currentRot = targetRotation * ease;
+                canvas.style.transform = \`rotate(\${(currentRot * 180 / Math.PI) - 90}deg)\`;
+
+                if (progress < duration) {
+                    requestAnimationFrame(animate);
+                } else {
+                    setTimeout(() => {
+                        tg.sendData(JSON.stringify({ premio: segment.text }));
+                    }, 500);
+                }
+            }
+            requestAnimationFrame(animate);
+        });
+    </script>
+</body>
+</html>
+`;
+
+// --- SERVIDOR QUE ENTREGA LA WEB APP ---
 const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Tatuador Online - V8.0 (Mapa de Dolor Completo) ✅');
+    if (req.url === '/ruleta') {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(HTML_RULETA);
+    } else {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('Tatuador Online - V9.1 (URL Configurada) ✅');
+    }
 });
 
 const PORT = process.env.PORT || 3000;
@@ -90,7 +230,6 @@ END:VEVENT
 END:VCALENDAR`;
 }
 
-// Diccionarios
 const diccionarioSimbolos = {
     'lobo': 'Lealtad, familia, protección y fuerza interior.',
     'león': 'Autoridad, coraje, poder y realeza.',
@@ -243,14 +382,14 @@ bot.hears('👤 Mi Perfil', (ctx) => {
     ctx.reply(`👤 **MI PERFIL**\n\n🆔 ID: \`${u.id}\`\n📛 Nombre: ${u.first_name}\n💎 Puntos: ${pts}\n📅 Citas: ${citas}`, {parse_mode: 'Markdown'});
 });
 
-// SUBMENÚS
+// SUBMENÚS CON RULETA WEB APP Y BOTÓN CONTACTO
 bot.hears('🎮 Zona Fun', (ctx) => {
     notificarAdmin(ctx, '🎮 Zona Fun');
     ctx.reply('🎢 **ZONA FUN**', Markup.keyboard([
-        ['🎰 Ruleta', '🔮 Oráculo'], 
-        ['🎱 Bola 8', '📚 Diccionario'], 
-        ['🕶️ Probador 2.0', '💬 Otro (Contactar)'], 
-        ['⬅️ Volver']
+        [Markup.button.webApp('🎰 RULETA VISUAL', `${URL_WEB}/ruleta`)], // Abre tu URL de Render
+        ['🔮 Oráculo', '🎱 Bola 8'], 
+        ['📚 Diccionario', '🕶️ Probador 2.0'],
+        ['💬 Otro (Contactar)', '⬅️ Volver']
     ]).resize());
 });
 
@@ -259,8 +398,7 @@ bot.hears('🚑 SOS & Cuidados', (ctx) => {
     ctx.reply('🏥 **CUIDADOS**', Markup.keyboard([
         ['🚨 PÁNICO', '⏰ Alarma Crema'], 
         ['🩸 Dolor', '🧼 Guía'], 
-        ['💬 Otro (Contactar)'], 
-        ['⬅️ Volver']
+        ['💬 Otro (Contactar)', '⬅️ Volver']
     ]).resize());
 });
 
@@ -273,7 +411,6 @@ bot.hears('💎 Club VIP', (ctx) => {
     ]));
 });
 
-// CONTACTO
 bot.hears('💬 Otro (Contactar)', (ctx) => {
     notificarAdmin(ctx, '💬 Pulsó Contacto Directo');
     const enlaceDirecto = `tg://user?id=${MI_ID}`;
@@ -284,11 +421,37 @@ bot.hears('💬 Otro (Contactar)', (ctx) => {
     );
 });
 
-// --- LÓGICA FUN & CARE (DOLOR ACTUALIZADO) ---
+// --- MANEJO DE DATOS DE LA RULETA (WEB APP) ---
+bot.on('web_app_data', (ctx) => {
+    const uid = ctx.from.id;
+    const hoy = new Date().toDateString();
+    
+    if (db.ultima_ruleta[uid] === hoy) {
+        return ctx.reply('🛑 **YA JUGASTE HOY**\nVuelve mañana.');
+    }
+
+    const data = JSON.parse(ctx.webAppData.data);
+    const premio = data.premio;
+    
+    db.ultima_ruleta[uid] = hoy;
+    notificarAdmin(ctx, `🎰 Ruleta Resultado: ${premio}`);
+
+    if (premio.includes("SIGUE")) {
+        ctx.reply('💨 **SIGUE JUGANDO**\nHoy no hubo suerte.');
+    } else {
+        const codigoPremio = `WIN-${Date.now().toString().slice(-4)}`;
+        if (!db.cupones) db.cupones = {};
+        db.cupones[codigoPremio] = premio;
+        
+        ctx.reply(`🎉 **¡HAS GANADO: ${premio}!** 🎉\n\nHaz captura y enséñaselo al tatuador.\nCódigo: \`${codigoPremio}\``, { parse_mode: 'Markdown' });
+    }
+    guardar();
+});
+
+// --- LÓGICA FUN & CARE ---
 bot.hears('🩸 Dolor', (ctx) => {
     notificarAdmin(ctx, '🩸 Mirando Dolor');
-    // MAPA DE DOLOR COMPLETO
-    ctx.reply('🔥 **MEDIDOR DE DOLOR**\nSelecciona la zona para ver el nivel (1-10):', Markup.inlineKeyboard([
+    ctx.reply('🔥 **MEDIDOR DE DOLOR**\nSelecciona la zona:', Markup.inlineKeyboard([
         [Markup.button.callback('💪 Antebrazo', 'd_3'), Markup.button.callback('🦵 Muslo', 'd_4')],
         [Markup.button.callback('🔙 Espalda', 'd_5'), Markup.button.callback('🦶 Gemelo', 'd_4')],
         [Markup.button.callback('🧣 Cuello', 'd_7'), Markup.button.callback('✋ Mano', 'd_7')],
@@ -298,7 +461,6 @@ bot.hears('🩸 Dolor', (ctx) => {
     ]));
 });
 
-// Acción Dolor actualizada para soportar más de un dígito (10)
 bot.action(/d_(\d+)/, (ctx) => {
     const nivel = parseInt(ctx.match[1]);
     let msg = `🔥 Nivel: ${nivel}/10\n`;
@@ -311,7 +473,7 @@ bot.action(/d_(\d+)/, (ctx) => {
 });
 
 bot.hears('🎰 Ruleta', (ctx) => {
-    notificarAdmin(ctx, '🎰 Jugando Ruleta');
+    notificarAdmin(ctx, '🎰 Jugando Ruleta (Texto)');
     const uid = ctx.from.id; const hoy = new Date().toDateString();
     if (db.ultima_ruleta[uid] === hoy) return ctx.reply('🛑 Ya jugaste hoy.');
     db.ultima_ruleta[uid] = hoy;
@@ -372,4 +534,4 @@ setInterval(() => {
     });
 }, 60000);
 
-bot.launch().then(() => console.log('🚀 SpicyInk V8.0 (Mapa Dolor Completo + Contacto)'));
+bot.launch().then(() => console.log('🚀 SpicyInk V9.1 (URL Configurada)'));
