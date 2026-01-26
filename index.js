@@ -102,7 +102,7 @@ const server = http.createServer((req, res) => {
         res.end(HTML_RULETA);
     } else {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Tatuador Online - V15.0 (Diseño Idéntico) ✅');
+        res.end('Tatuador Online - V18.0 (Citas & Inventario Admin) ✅');
     }
 });
 
@@ -142,6 +142,7 @@ if (fs.existsSync(DATA_FILE)) {
         if (!db.fichas) db.fichas = {}; 
         if (!db.clics) db.clics = {}; 
         if (db.mantenimiento === undefined) db.mantenimiento = false;
+        if (!db.cupones) db.cupones = {};
     } catch (e) { console.log("❌ Error cargando DB."); }
 } else {
     guardar();
@@ -240,6 +241,7 @@ function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
 // 4. ESCENAS (WIZARDS)
 // ==========================================
 
+// --- CITA (ADMIN) - MODIFICADO PARA AVISO DOBLE ---
 const citaWizard = new Scenes.WizardScene('cita-wizard',
     (ctx) => { ctx.reply('📅 **NUEVA CITA**\nID Cliente:'); ctx.wizard.state.cita = {}; return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.cita.clienteId = ctx.message.text.trim(); ctx.reply('👤 Nombre:'); return ctx.wizard.next(); },
@@ -256,11 +258,74 @@ const citaWizard = new Scenes.WizardScene('cita-wizard',
     },
     async (ctx) => {
         const st = ctx.wizard.state.cita;
-        const nc = { id: Date.now(), clienteId: st.clienteId, nombre: st.nombre, telefono: st.telefono, fecha: st.timestamp, fechaTexto: st.fechaStr, descripcion: ctx.message.text, avisado24h: false };
-        db.citas.push(nc); guardar();
-        try { await ctx.telegram.sendMessage(st.clienteId, `📅 **CITA CONFIRMADA**\n${st.nombre}, te esperamos el ${st.fechaTexto}`); } catch(e){}
+        const nc = { 
+            id: Date.now(), 
+            clienteId: st.clienteId, 
+            nombre: st.nombre, 
+            telefono: st.telefono, 
+            fecha: st.timestamp, 
+            fechaTexto: st.fechaStr, 
+            descripcion: ctx.message.text, 
+            avisado24h: false 
+        };
+        db.citas.push(nc); 
+        guardar();
+        
+        // AVISO AL CLIENTE
+        try { 
+            await ctx.telegram.sendMessage(st.clienteId, `📅 **CITA CONFIRMADA**\n${st.nombre}, te esperamos el ${st.fechaTexto}\n\n💉 **Trabajo:** ${nc.descripcion}\n⏰ **Recordatorio:** Te avisaré 24h antes.`); 
+        } catch(e) {
+            ctx.reply('⚠️ No se pudo enviar mensaje al cliente (¿Me ha bloqueado?).');
+        }
+
+        // AVISO AL ADMIN (Creación de archivo ICS + Texto)
         const ics = generarICS(new Date(st.timestamp), st.nombre, ctx.message.text, st.telefono);
-        await ctx.replyWithDocument({ source: Buffer.from(ics), filename: 'cita.ics' }, { caption: '✅ Cita creada' });
+        await ctx.replyWithDocument({ source: Buffer.from(ics), filename: 'cita.ics' }, { 
+            caption: `✅ **CITA AGENDADA**\n\n👤 ${st.nombre}\n📅 ${st.fechaTexto}\n📞 ${st.telefono}\n\n🔔 He notificado al cliente y programado el aviso de 24h.` 
+        });
+        
+        return ctx.scene.leave();
+    }
+);
+
+// ESCENA CUPÓN
+const couponScene = new Scenes.WizardScene('coupon-wizard',
+    (ctx) => { ctx.reply('🎟️ **CREAR CUPÓN**\nEscribe el código (ej: PROMO10):'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.code = ctx.message.text; ctx.reply('💰 Valor en puntos (ej: 50):'); return ctx.wizard.next(); },
+    (ctx) => { 
+        db.cupones[ctx.wizard.state.code] = parseInt(ctx.message.text);
+        guardar();
+        ctx.reply(`✅ Cupón ${ctx.wizard.state.code} creado con ${ctx.message.text} puntos.`);
+        return ctx.scene.leave();
+    }
+);
+
+// ESCENA DIFUSIÓN
+const broadcastScene = new Scenes.WizardScene('broadcast-wizard',
+    (ctx) => { ctx.reply('📢 **DIFUSIÓN GLOBAL**\nEscribe el mensaje para TODOS los usuarios:'); return ctx.wizard.next(); },
+    async (ctx) => {
+        const msg = ctx.message.text;
+        const users = Object.keys(db.fichas).concat(Object.keys(db.puntos)); // Lista aproximada de usuarios activos
+        const uniqueUsers = [...new Set(users)]; // Eliminar duplicados
+        
+        ctx.reply(`🚀 Enviando a ${uniqueUsers.length} usuarios...`);
+        for (const uid of uniqueUsers) {
+            try { await ctx.telegram.sendMessage(uid, `📢 **AVISO IMPORTANTE**\n\n${msg}`); } catch(e){}
+        }
+        ctx.reply('✅ Difusión completada.');
+        return ctx.scene.leave();
+    }
+);
+
+// ESCENA RECORDATORIO MANUAL
+const reminderScene = new Scenes.WizardScene('reminder-wizard',
+    (ctx) => { ctx.reply('⏰ **RECORDATORIO MANUAL**\nIntroduce ID del usuario:'); return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.uid = ctx.message.text; ctx.reply('Escribe el mensaje de recordatorio:'); return ctx.wizard.next(); },
+    async (ctx) => {
+        try {
+            await ctx.telegram.sendMessage(ctx.wizard.state.uid, `⏰ **RECORDATORIO**\n${ctx.message.text}`);
+            ctx.reply('✅ Enviado.');
+        } catch (e) { ctx.reply('❌ Error al enviar (ID inválido o bot bloqueado).'); }
         return ctx.scene.leave();
     }
 );
@@ -453,13 +518,11 @@ mineScene.enter((ctx) => {
     ]));
 });
 
-// 🔥 MODIFICACIÓN: ACTUALIZA TEXTO 0/1000 AL PULSAR
 mineScene.action('minar', async (ctx) => {
     const uid = ctx.from.id;
     db.clics[uid] = (db.clics[uid] || 0) + 1;
     guardar();
     
-    // Si completa el tanque
     if (db.clics[uid] >= 1000) { 
         ctx.reply('🎉 **¡TANQUE LLENO!** Ganaste un tattoo 20€. Haz captura.'); 
         db.clics[uid] = 0; 
@@ -467,7 +530,6 @@ mineScene.action('minar', async (ctx) => {
         return ctx.scene.leave(); 
     }
 
-    // Actualizar mensaje visualmente (Efecto contador)
     try {
         await ctx.editMessageText(
             `💉 **MINERÍA DE TINTA**\nLlenado: ${db.clics[uid]}/1000 ml\n🎁 1000ml = Tatuaje 20€ Gratis`,
@@ -476,11 +538,9 @@ mineScene.action('minar', async (ctx) => {
                 [Markup.button.callback('⬅️ Salir', 'salir')]
             ])
         );
-    } catch (e) {
-        // Ignorar error si el mensaje no cambió (anti-spam)
-    }
+    } catch (e) {}
     
-    ctx.answerCbQuery(); // Responder sin alerta de texto
+    ctx.answerCbQuery(); 
 });
 mineScene.action('salir', (ctx) => { ctx.scene.leave(); return irAlMenuPrincipal(ctx); });
 
@@ -508,16 +568,14 @@ const canjeWizard = new Scenes.WizardScene('canje-wizard',
     }
 );
 
-// DICCIONARIO CORREGIDO "📚 Símbolo:"
+// DICCIONARIO
 const diccionarioScene = new Scenes.WizardScene('diccionario-scene', (ctx) => { ctx.reply('📚 Símbolo:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Significado: ...'); return ctx.scene.leave(); });
 const probadorScene = new Scenes.WizardScene('probador-scene', (ctx) => { ctx.reply('📸 Envía foto cuerpo:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Ahora diseño...'); return ctx.scene.leave(); });
 const panicoScene = new Scenes.WizardScene('panico-scene', (ctx) => { notificarAdmin(ctx, '🚨 PÁNICO'); ctx.reply('1. ¿Calor?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('2. ¿Pus?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('3. ¿Fiebre?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Resultado...'); return ctx.scene.leave(); });
 const regaloScene = new Scenes.WizardScene('regalo-scene', (ctx) => { ctx.reply('Nombre:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Importe:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Generada.'); return ctx.scene.leave(); });
 const cumpleScene = new Scenes.WizardScene('cumple-scene', (ctx) => { ctx.reply('Fecha DD/MM:'); return ctx.wizard.next(); }, (ctx) => { db.cumples[ctx.from.id] = ctx.message.text; guardar(); ctx.reply('Guardado'); return ctx.scene.leave(); });
-const broadcastScene = new Scenes.WizardScene('broadcast-wizard', (ctx) => { ctx.reply('📢 Mensaje a todos:'); return ctx.wizard.next(); }, async (ctx) => { ctx.reply('Enviando...'); return ctx.scene.leave(); });
-const couponScene = new Scenes.WizardScene('coupon-wizard', (ctx) => { ctx.reply('Código:'); return ctx.wizard.next(); }, (ctx) => { db.cupones[ctx.message.text] = 10; guardar(); ctx.reply('Creado.'); return ctx.scene.leave(); });
 
-const stage = new Scenes.Stage([tattooScene, mineScene, iaScene, canjeWizard, citaWizard, probadorScene, diccionarioScene, panicoScene, regaloScene, cumpleScene, broadcastScene, couponScene]);
+const stage = new Scenes.Stage([tattooScene, mineScene, iaScene, canjeWizard, citaWizard, probadorScene, diccionarioScene, panicoScene, regaloScene, cumpleScene, broadcastScene, couponScene, reminderScene]);
 bot.use(session());
 bot.use(stage.middleware());
 
@@ -541,10 +599,21 @@ bot.start((ctx) => {
     return irAlMenuPrincipal(ctx);
 });
 
-// 🔥 MENÚ PRINCIPAL CORREGIDO (IMAGEN 1)
+// 🔥 MENÚ PRINCIPAL (DISEÑO FINAL)
 function irAlMenuPrincipal(ctx) {
     if (db.mantenimiento && ctx.from.id.toString() !== MI_ID.toString()) return ctx.reply('🛠️ Mantenimiento. Volvemos pronto.');
     
+    const uid = ctx.from.id;
+    const pts = db.puntos[uid] || 0;
+
+    const encabezado = 
+`✨ S P I C Y I N K ✨
+━━━━━━━━━━━━━━━━━━━━
+👤 **Tu ID:** \`${uid}\`
+💎 **Puntos:** \`${pts} pts\`
+━━━━━━━━━━━━━━━━━━━━
+Selecciona una opción:`;
+
     const botones = [
         ['🔥 Cita / Presupuesto', '🎮 Zona Fun'],
         ['🚑 SOS & Cuidados', '💎 Club VIP'],
@@ -552,7 +621,7 @@ function irAlMenuPrincipal(ctx) {
     ];
     if (ctx.from.id.toString() === MI_ID.toString()) botones.push(['📊 Panel Admin']);
     
-    return ctx.reply(`✨ MENÚ PRINCIPAL ✨`, Markup.keyboard(botones).resize());
+    return ctx.reply(encabezado, { parse_mode: 'Markdown', ...Markup.keyboard(botones).resize() });
 }
 
 bot.hears('🔥 Cita / Presupuesto', (ctx) => ctx.scene.enter('tattoo-wizard'));
@@ -567,10 +636,10 @@ bot.hears('👤 Mi Perfil', (ctx) => {
     ctx.reply(msg, { parse_mode: 'Markdown' });
 });
 
+// ZONA FUN
 bot.hears('🎮 Zona Fun', (ctx) => {
     ctx.reply('🎢 **ZONA FUN**', Markup.keyboard([
         ['🎰 Tirar Ruleta', '🤖 IA: ¿Qué me tatuo?'],
-        ['🔮 Oráculo', '🎱 Bola 8'], 
         ['📚 Diccionario', '🕶️ Probador 2.0'],
         ['⬅️ Volver']
     ]).resize());
@@ -578,7 +647,7 @@ bot.hears('🎮 Zona Fun', (ctx) => {
 
 bot.action('nueva_ia', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('ia-wizard'); });
 
-// 🔥 CLUB VIP CORREGIDO (IMAGEN 6)
+// CLUB VIP
 bot.hears('💎 Club VIP', (ctx) => {
     const uid = ctx.from.id;
     const refs = db.referidos[uid] || 0;
@@ -603,8 +672,7 @@ bot.hears('🎰 Tirar Ruleta', (ctx) => {
     ctx.reply(msg, Markup.inlineKeyboard([[Markup.button.webApp('🚀 ABRIR', `${URL_WEB}/ruleta`)]]));
 });
 
-// 🔥 SOS & CUIDADOS CORREGIDO (IMAGEN 5)
-// Ahora usa Botones Inline como en la captura
+// SOS & CUIDADOS
 bot.hears('🚑 SOS & Cuidados', (ctx) => {
     ctx.reply('🏥 **CUIDADOS**', Markup.inlineKeyboard([
         [Markup.button.callback('🚨 PÁNICO', 'sos_panico'), Markup.button.callback('⏰ Alarma Crema', 'sos_alarma')],
@@ -613,7 +681,6 @@ bot.hears('🚑 SOS & Cuidados', (ctx) => {
     ]));
 });
 
-// Acciones para los botones inline de SOS
 bot.action('sos_panico', (ctx) => { ctx.answerCbQuery(); ctx.scene.enter('panico-scene'); });
 bot.action('sos_alarma', (ctx) => { 
     const uid = String(ctx.from.id);
@@ -623,7 +690,7 @@ bot.action('sos_alarma', (ctx) => {
 });
 bot.action('sos_dolor', (ctx) => { ctx.reply('Selecciona zona:', Markup.inlineKeyboard([[Markup.button.callback('Brazo', 'd_3')]])); ctx.answerCbQuery(); });
 bot.action('sos_guia', (ctx) => { ctx.reply('Lavar, Secar, Crema. 3 veces/día.'); ctx.answerCbQuery(); });
-bot.action('sos_volver', (ctx) => { ctx.deleteMessage(); irAlMenuPrincipal(ctx); }); // Borra el menú inline y muestra el principal
+bot.action('sos_volver', (ctx) => { ctx.deleteMessage(); irAlMenuPrincipal(ctx); }); 
 bot.action('d_3', (ctx) => ctx.answerCbQuery('Nivel: 3/10', {show_alert:true}));
 
 
@@ -664,33 +731,71 @@ bot.on('web_app_data', (ctx) => {
     guardar();
 });
 
-// 🔥 PANEL ADMIN CORREGIDO (IMAGEN 1)
+// 🔥 PANEL ADMIN (DISEÑO ACTUALIZADO)
 bot.hears('📊 Panel Admin', (ctx) => {
     if (ctx.from.id.toString() !== MI_ID.toString()) return;
-    ctx.reply('🛠️ **PANEL**', Markup.inlineKeyboard([
-        [Markup.button.callback('👥 Lista', 'adm_users'), Markup.button.callback('📅 Nueva Cita', 'admin_cita')],
-        [Markup.button.callback('🗓️ Calendario', 'adm_cal'), Markup.button.callback('📢 Difusión', 'adm_broad')]
+    
+    const botonMant = db.mantenimiento ? '🟢 Desactivar Mantenimiento' : '🔴 Mantenimiento';
+
+    ctx.reply('🛠️ **PANEL DE ADMINISTRACIÓN**', Markup.inlineKeyboard([
+        [Markup.button.callback('👥 Lista Usuarios', 'adm_users'), Markup.button.callback('🎟️ Crear Cupón', 'adm_cup')],
+        [Markup.button.callback('📢 Difusión Global', 'adm_broad'), Markup.button.callback('⏰ Recordatorio', 'adm_rem')],
+        [Markup.button.callback('🗂️ Inventario Citas', 'adm_citas_list')], // Nuevo botón Inventario
+        [Markup.button.callback(botonMant, 'adm_mant')],
+        [Markup.button.callback('📅 Agendar Cita', 'admin_cita')], // Botón explícito para crear cita
+        [Markup.button.callback('📜 Consentimiento', 'adm_legal'), Markup.button.callback('⬅️ Volver', 'adm_back')]
     ]));
 });
 
 bot.action('adm_users', (ctx) => { ctx.reply(`Usuarios: ${Object.keys(db.fichas).length + Object.keys(db.inventario).length}`); ctx.answerCbQuery(); });
-bot.action('adm_cal', (ctx) => { 
-    const citas = db.citas.filter(c => c.fecha > Date.now()).map(c => `${c.fechaTexto} - ${c.nombre}`).join('\n');
-    ctx.reply(citas || "Sin citas futuras."); ctx.answerCbQuery(); 
-});
-bot.action('admin_cita', (ctx) => ctx.scene.enter('cita-wizard'));
-bot.action('admin_canje', (ctx) => ctx.scene.enter('canje-wizard'));
+bot.action('adm_mant', (ctx) => { db.mantenimiento = !db.mantenimiento; guardar(); ctx.reply(`Mantenimiento: ${db.mantenimiento}`); ctx.answerCbQuery(); });
+bot.action('adm_legal', (ctx) => { ctx.reply('Texto legal para enviar: "Yo confirmo que soy mayor de edad..."'); ctx.answerCbQuery(); });
+bot.action('adm_back', (ctx) => { ctx.deleteMessage(); irAlMenuPrincipal(ctx); });
 bot.action('adm_broad', (ctx) => ctx.scene.enter('broadcast-wizard'));
 bot.action('adm_cup', (ctx) => ctx.scene.enter('coupon-wizard'));
+bot.action('adm_rem', (ctx) => ctx.scene.enter('reminder-wizard'));
+bot.action('admin_cita', (ctx) => ctx.scene.enter('cita-wizard'));
 
+// 🔥 INVENTARIO DE CITAS
+bot.action('adm_citas_list', (ctx) => {
+    const now = Date.now();
+    // Filtramos citas futuras y las ordenamos
+    const citasFuturas = db.citas
+        .filter(c => c.fecha > now)
+        .sort((a, b) => a.fecha - b.fecha);
+
+    if (citasFuturas.length === 0) {
+        ctx.reply('📭 No hay citas próximas.');
+    } else {
+        let msg = "🗓️ **INVENTARIO DE CITAS**\n━━━━━━━━━━━━━━━━━━━━\n\n";
+        citasFuturas.forEach(c => {
+            msg += `📅 **${c.fechaTexto}**\n👤 ${c.nombre}\n💉 ${c.descripcion}\n📞 ${c.telefono}\n────────────────────\n`;
+        });
+        ctx.reply(msg, { parse_mode: 'Markdown' });
+    }
+    ctx.answerCbQuery();
+});
+
+// CRON: Recordatorios 24H (Para Cliente y Admin)
 setInterval(() => {
     const ahora = Date.now();
+    const UN_DIA = 86400000;
+
     db.citas.forEach(c => {
-        if (!c.avisado24h && (c.fecha - ahora) > 0 && (c.fecha - ahora) <= 86400000) {
-            bot.telegram.sendMessage(c.clienteId, `⏰ Mañana cita: ${c.fechaTexto}`).catch(()=>{});
-            c.avisado24h = true; guardar();
+        const diff = c.fecha - ahora;
+        
+        // Si falta menos de 24h (y más de 23h 50m para no repetir) y no se ha avisado
+        if (!c.avisado24h && diff > 0 && diff <= UN_DIA && diff > (UN_DIA - 600000)) {
+            // Aviso al Cliente
+            bot.telegram.sendMessage(c.clienteId, `⏰ **RECORDATORIO 24H**\nHola ${c.nombre}, tu cita es mañana a las ${c.fechaTexto}.`).catch(()=>{});
+            
+            // Aviso al Admin (Tú)
+            bot.telegram.sendMessage(MI_ID, `🔔 **ALERTA 24H**\nMañana tienes cita con ${c.nombre} a las ${c.fechaTexto}.`).catch(()=>{});
+            
+            c.avisado24h = true; 
+            guardar();
         }
     });
-}, 60000);
+}, 60000); // Revisar cada minuto
 
-bot.launch().then(() => console.log('🚀 SpicyInk V15 (Diseño Idéntico a Imágenes)'));
+bot.launch().then(() => console.log('🚀 SpicyInk V18 (Final - Admin Panel Updated)'));
