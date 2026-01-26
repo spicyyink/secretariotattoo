@@ -51,7 +51,6 @@ function guardar() {
 // ==========================================
 // 2.1 UTILIDADES DE FECHA Y CALENDARIO
 // ==========================================
-
 function parsearFecha(texto) {
     const [fecha, hora] = texto.split(' ');
     const [dia, mes, anio] = fecha.split('/').map(Number);
@@ -59,12 +58,14 @@ function parsearFecha(texto) {
     return new Date(anio, mes - 1, dia, horas, minutos);
 }
 
-function generarICS(fechaInicio, nombreCliente, descripcion) {
+function generarICS(fechaInicio, nombreCliente, descripcion, telefono) {
     const pad = (n) => n < 10 ? '0' + n : n;
     const formatICSDate = (date) => {
         return `${date.getFullYear()}${pad(date.getMonth()+1)}${pad(date.getDate())}T${pad(date.getHours())}${pad(date.getMinutes())}00`;
     };
     const fechaFin = new Date(fechaInicio.getTime() + (2 * 60 * 60 * 1000)); 
+
+    const descripcionFull = `${descripcion}\\n📞 Tel: ${telefono}`;
 
     return `BEGIN:VCALENDAR
 VERSION:2.0
@@ -75,7 +76,7 @@ DTSTAMP:${formatICSDate(new Date())}
 DTSTART:${formatICSDate(fechaInicio)}
 DTEND:${formatICSDate(fechaFin)}
 SUMMARY:Tatuaje con ${nombreCliente}
-DESCRIPTION:${descripcion}
+DESCRIPTION:${descripcionFull}
 BEGIN:VALARM
 TRIGGER:-PT24H
 DESCRIPTION:Recordatorio de Tatuaje
@@ -167,7 +168,7 @@ function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
 }
 
 // ==========================================
-// 5. MENÚ PRINCIPAL (BOTONES DINÁMICOS)
+// 5. MENÚ PRINCIPAL
 // ==========================================
 function irAlMenuPrincipal(ctx) {
     if (db.mantenimiento && ctx.from.id.toString() !== MI_ID.toString()) {
@@ -198,27 +199,40 @@ function irAlMenuPrincipal(ctx) {
 // 6. ESCENAS
 // ==========================================
 
+// --- WIZARD DE CITA QUE PIDE NOMBRE OBLIGATORIAMENTE ---
 const citaWizard = new Scenes.WizardScene('cita-wizard',
+    // 1. ID TELEGRAM
     (ctx) => { 
-        ctx.reply('📅 **NUEVA CITA (ADMIN)**\nIntroduce el ID del cliente de Telegram:\n(Puedes verlo en la lista de usuarios)'); 
+        ctx.reply('📅 **NUEVA CITA (Paso 1/5)**\n\nIntroduce el **ID de Telegram** del cliente:\n(Cópialo de la lista de usuarios)'); 
         ctx.wizard.state.cita = {};
         return ctx.wizard.next(); 
     },
+    // 2. NOMBRE (AQUÍ ES DONDE ANTES FALLABA, AHORA PIDE NOMBRE)
     (ctx) => { 
         ctx.wizard.state.cita.clienteId = ctx.message.text.trim();
-        const nombreFicha = db.fichas[ctx.message.text] ? db.fichas[ctx.message.text].nombre : "Cliente";
-        ctx.wizard.state.cita.nombre = nombreFicha;
-        
-        ctx.reply(`✅ Cliente: ${nombreFicha}\n\nAhora escribe la FECHA y HORA exacta en este formato:\n**DD/MM/YYYY HH:MM**\n\nEjemplo: 25/12/2026 10:30`); 
+        ctx.reply('👤 **NOMBRE DEL CLIENTE (Paso 2/5)**\n\nEscribe el Nombre (Ej: Juan Pérez) para que aparezca en el calendario:'); 
         return ctx.wizard.next(); 
     },
+    // 3. TELEFONO
+    (ctx) => {
+        ctx.wizard.state.cita.nombre = ctx.message.text; // Guardamos el nombre manual
+        ctx.reply('📞 **TELÉFONO (Paso 3/5)**\n\nEscribe el número de teléfono del cliente:');
+        return ctx.wizard.next();
+    },
+    // 4. DIA Y HORA
+    (ctx) => {
+        ctx.wizard.state.cita.telefono = ctx.message.text;
+        ctx.reply('📆 **FECHA Y HORA (Paso 4/5)**\n\nFormato: DD/MM/YYYY HH:MM\nEjemplo: 25/12/2026 10:30');
+        return ctx.wizard.next();
+    },
+    // 5. TATUAJE (DESCRIPCIÓN) + GUARDADO
     (ctx) => {
         const fechaStr = ctx.message.text;
         const regex = /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/;
         
         if (!regex.test(fechaStr)) {
-            ctx.reply('❌ Formato incorrecto. Inténtalo de nuevo:\nDD/MM/YYYY HH:MM (ej: 20/05/2026 17:00)');
-            return; 
+            ctx.reply('❌ Formato de fecha incorrecto. Inténtalo de nuevo:\nDD/MM/YYYY HH:MM (ej: 20/05/2026 17:00)');
+            return;
         }
 
         try {
@@ -228,7 +242,7 @@ const citaWizard = new Scenes.WizardScene('cita-wizard',
             ctx.wizard.state.cita.fechaStr = fechaStr;
             ctx.wizard.state.cita.timestamp = fechaObj.getTime();
             
-            ctx.reply('✍️ Describe brevemente el tatuaje (para el calendario):');
+            ctx.reply('💉 **DESCRIPCIÓN DEL TATUAJE (Paso 5/5)**\n\nEscribe brevemente qué se va a tatuar:');
             return ctx.wizard.next();
         } catch (e) {
             ctx.reply('❌ La fecha no es válida. Revisa el calendario.');
@@ -243,8 +257,9 @@ const citaWizard = new Scenes.WizardScene('cita-wizard',
             id: Date.now(),
             clienteId: estado.clienteId,
             nombre: estado.nombre,
+            telefono: estado.telefono,
             fecha: estado.timestamp, 
-            fechaTexto: estado.citaStr || estado.fechaStr, 
+            fechaTexto: estado.fechaStr, 
             descripcion: estado.descripcion,
             avisado24h: false
         };
@@ -252,21 +267,23 @@ const citaWizard = new Scenes.WizardScene('cita-wizard',
         db.citas.push(nuevaCita);
         guardar();
 
+        // Enviar confirmación al Cliente
         try {
             await ctx.telegram.sendMessage(estado.clienteId, `📅 **CITA CONFIRMADA**\n━━━━━━━━━━━━━━━━━━━━\nHola ${estado.nombre}, tu cita ha sido registrada.\n\n📆 **Día:** ${estado.fechaStr}\n💉 **Tatuaje:** ${estado.descripcion}\n\n📍 Te esperamos en el estudio.`);
         } catch (e) {
             ctx.reply('⚠️ No se pudo enviar mensaje al cliente (¿Me ha bloqueado?), pero la cita se guardó.');
         }
 
+        // Generar archivo .ics con el teléfono incluido
         const fechaObj = new Date(estado.timestamp);
-        const icsContent = generarICS(fechaObj, estado.nombre, estado.descripcion);
+        const icsContent = generarICS(fechaObj, estado.nombre, estado.descripcion, estado.telefono);
         const buffer = Buffer.from(icsContent, 'utf-8');
 
         await ctx.replyWithDocument({
             source: buffer,
             filename: `Cita_${estado.nombre.replace(/\s/g, '_')}.ics`
         }, { 
-            caption: '✅ **Cita Creada**\n\nToca el archivo arriba para añadirlo al calendario de tu iPhone inmediatamente.' 
+            caption: `✅ **Cita Creada**\n\n👤 ${estado.nombre}\n📞 ${estado.telefono}\n📆 ${estado.fechaStr}\n\nToca el archivo arriba para añadirlo al calendario.` 
         });
 
         return ctx.scene.leave();
@@ -590,7 +607,7 @@ bot.hears('📊 Panel de Control', (ctx) => {
     return ctx.reply('🛠️ **PANEL DE ADMINISTRACIÓN**', 
         Markup.inlineKeyboard([
             [Markup.button.callback('👥 Lista Usuarios', 'admin_usuarios'), Markup.button.callback('📅 NUEVA CITA', 'admin_cita')],
-            [Markup.button.callback('🗓️ Ver Calendario', 'admin_calendario'), Markup.button.callback('🎟️ Crear Cupón', 'admin_cupon')], // <-- CAMBIO AQUÍ
+            [Markup.button.callback('🗓️ Ver Calendario', 'admin_calendario'), Markup.button.callback('🎟️ Crear Cupón', 'admin_cupon')],
             [Markup.button.callback('📢 Difusión', 'admin_broadcast'), Markup.button.callback(db.mantenimiento ? '🟢 Activar Bot' : '🔴 Mantenimiento', 'admin_mantenimiento')],
             [Markup.button.callback('📜 Consentimiento', 'admin_legal'), Markup.button.callback('⬅️ Volver', 'admin_volver')]
         ]));
@@ -608,31 +625,25 @@ bot.action('admin_usuarios', async (ctx) => {
     return ctx.reply(lista, { parse_mode: 'Markdown' });
 });
 
-// --- NUEVA LÓGICA DE CALENDARIO ---
+// --- LÓGICA DE CALENDARIO ---
 bot.action('admin_calendario', async (ctx) => {
     if (!db.citas || db.citas.length === 0) {
         return ctx.answerCbQuery("❌ No hay citas programadas.");
     }
-
     // Ordenar citas cronológicamente
     const citasOrdenadas = db.citas.sort((a, b) => a.fecha - b.fecha);
     const ahora = Date.now();
-
     let mensaje = "🗓️ **CALENDARIO DE CITAS**\n━━━━━━━━━━━━━━━━━━━━\n\n";
     let contador = 0;
-
     citasOrdenadas.forEach(cita => {
-        // Filtrar citas pasadas hace más de 24h para mantener limpio, o mostrar todas
-        // Aquí mostramos las futuras y las de hoy
+        // Mostrar citas futuras y las de hoy
         if (cita.fecha > ahora - (24 * 60 * 60 * 1000)) {
             const fechaBonita = new Date(cita.fecha).toLocaleString('es-ES', { dateStyle: 'full', timeStyle: 'short' });
-            mensaje += `📌 **${fechaBonita}**\n👤 ${cita.nombre}\n💉 ${cita.descripcion}\n🆔 \`${cita.clienteId}\`\n─────────────────\n`;
+            mensaje += `📌 **${fechaBonita}**\n👤 ${cita.nombre}\n📞 ${cita.telefono || 'Sin tfno'}\n💉 ${cita.descripcion}\n🆔 \`${cita.clienteId}\`\n─────────────────\n`;
             contador++;
         }
     });
-
     if (contador === 0) mensaje += "✅ No tienes citas próximas.";
-    
     await ctx.answerCbQuery();
     return ctx.reply(mensaje, { parse_mode: 'Markdown' });
 });
@@ -733,4 +744,4 @@ setInterval(() => {
 
 }, 60 * 1000); 
 
-bot.launch().then(() => console.log('🚀 Bot Funcionando con Calendario'));
+bot.launch().then(() => console.log('🚀 Bot Funcionando con Corrección de Nombres'));
