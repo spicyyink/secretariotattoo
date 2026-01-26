@@ -3,7 +3,6 @@ const { Telegraf, Scenes, session, Markup } = require('telegraf');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const Jimp = require('jimp');
 
 // ==========================================
 // 1. CONFIGURACIÓN DEL SERVIDOR Y WEB APP
@@ -103,7 +102,7 @@ const server = http.createServer((req, res) => {
         res.end(HTML_RULETA);
     } else {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Tatuador Online - V14.0 (IA Completa + Ruleta + Presupuesto) ✅');
+        res.end('Tatuador Online - V15.0 (Diseño Idéntico) ✅');
     }
 });
 
@@ -123,18 +122,16 @@ let db = {
     fichas: {}, puntos: {}, cupones: {}, citas: [], 
     alarmas: {}, cumples: {}, 
     ultima_ruleta: {}, sanciones: {}, intentos_ruleta: {}, 
-    inventario: {}, // Premios ganados
+    inventario: {}, 
     mantenimiento: false 
 };
 
-// Persistencia en disco
 const DATA_FILE = path.join('/tmp', 'database.json');
 
 if (fs.existsSync(DATA_FILE)) {
     try { 
         const contenido = fs.readFileSync(DATA_FILE, 'utf-8');
         db = JSON.parse(contenido);
-        // Inicialización de seguridad para campos nuevos
         if (!db.citas) db.citas = [];
         if (!db.alarmas) db.alarmas = {};
         if (!db.cumples) db.cumples = {};
@@ -142,11 +139,10 @@ if (fs.existsSync(DATA_FILE)) {
         if (!db.sanciones) db.sanciones = {};
         if (!db.intentos_ruleta) db.intentos_ruleta = {};
         if (!db.inventario) db.inventario = {}; 
-        if (!db.fichas) db.fichas = {}; // Fichas de presupuesto
-        if (!db.clics) db.clics = {}; // Minería
+        if (!db.fichas) db.fichas = {}; 
+        if (!db.clics) db.clics = {}; 
         if (db.mantenimiento === undefined) db.mantenimiento = false;
-        console.log("✅ DB Cargada y Verificada.");
-    } catch (e) { console.log("❌ Error cargando DB, creando nueva."); }
+    } catch (e) { console.log("❌ Error cargando DB."); }
 } else {
     guardar();
 }
@@ -195,42 +191,12 @@ END:VEVENT
 END:VCALENDAR`;
 }
 
-// DICCIONARIO COMPLETO (NECESARIO PARA LA IA)
 function traducirTerminos(texto) {
     if (!texto) return "";
     const diccionario = {
         'blanco y negro': 'black and gray', 'color': 'full color', 'realismo': 'photorealistic',
-        'fine line': 'ultra fine line', 'blackwork': 'heavy blackwork', 'lettering': 'custom calligraphy',
-        'tradicional': 'old school traditional', 'neotradicional': 'neo-traditional', 'acuarela': 'watercolor style',
-        'puntillismo': 'dotwork style', 'antebrazo': 'forearm', 'bíceps': 'biceps', 'biceps': 'biceps',
-        'hombro': 'shoulder', 'costillas': 'ribs', 'esternón': 'sternum', 'esternon': 'sternum',
-        'espalda': 'back', 'muslo': 'thigh', 'gemelo': 'calf', 'tobillo': 'ankle', 'mano': 'hand',
-        'cuello': 'neck', 'muñeca': 'wrist', 'rodilla': 'knee', 'cara': 'face', 'pies': 'feet',
-        'columna': 'spine', 'codo': 'elbow', 'axila': 'armpit', 'lobo': 'wolf', 'león': 'lion',
-        'leon': 'lion', 'tigre': 'tiger', 'serpiente': 'snake', 'dragón': 'dragon', 'dragon': 'dragon',
-        'águila': 'eagle', 'aguila': 'eagle', 'búho': 'owl', 'buho': 'owl', 'calavera': 'skull',
-        'catrina': 'sugar skull catrina', 'mariposa': 'butterfly', 'fénix': 'phoenix', 'fenix': 'phoenix',
-        'carpa koi': 'koi fish', 'samurái': 'samurai', 'samurai': 'samurai', 'aullando': 'howling',
-        'saltando': 'leaping', 'rugiendo': 'roaring', 'corriendo': 'running', 'volando': 'flying',
-        'mirando de frente': 'frontal view pose', 'perfil': 'side profile view', 'posición de alerta': 'alert stance',
-        'agazapado': 'crouching', 'ataque': 'attacking pose', 'bosque': 'deep forest', 'sabana': 'savannah',
-        'selva': 'jungle', 'nubes': 'ethereal clouds', 'mandalas': 'intricate mandala patterns',
-        'fondo limpio': 'clean solid background', 'montañas': 'mountains', 'mar': 'ocean waves',
-        'espacio': 'outer space stars', 'geometría': 'geometric patterns', 'cielo despejado': 'clear sky',
-        'luz dramática': 'dramatic high-contrast lighting', 'luz dramatica': 'dramatic high-contrast lighting',
-        'sombras suaves': 'soft_smooth shading', 'alto contraste': 'high contrast cinematic lighting',
-        'hiperrealista': 'hyper-realistic masterpiece, extreme macro photography detail, 8k resolution, ultra-detailed skin textures, depth of field, sharp focus, cinematic volumetric lighting',
-        'minimalista': 'clean minimalist', 'muy sombreado': 'heavy atmospheric shading', 'microrealismo': 'micro-realism',
-        'rosas': 'blooming roses', 'flores': 'flowers', 'dagas': 'sharp daggers', 'espada': 'sword',
-        'fuego': 'burning flames', 'reloj': 'pocket watch', 'brújula': 'compass', 'brujula': 'compass',
-        'corona': 'crown', 'alas': 'angel wings', 'nada': 'none', 'línea fina': 'fine-line work',
-        'linea fina': 'fine-line work', 'línea gruesa': 'bold traditional lines', 'linea gruesa': 'bold traditional lines',
-        'sin líneas': 'no-outline 3D style', 'sin lineas': 'no-outline 3D style', 'fotorealista': 'photorealistic rendering',
-        'vertical alargado': 'vertical elongated', 'circular': 'circular composition', 'diamante': 'diamond-shaped frame',
-        'al gusto': 'custom artistic composition', 'natural': 'natural flow', 'oscuridad': 'dark moody gothic atmosphere',
-        'paz': 'serene and peaceful vibe', 'fuerza': 'powerful and aggressive energy', 'elegancia': 'elegant and sophisticated style',
-        'misterio': 'mysterious aura', 'tristeza': 'melancholic feel', 'libertad': 'sense of freedom',
-        'fuerza, oscuridad': 'powerful energy and dark atmosphere'
+        'fine line': 'ultra fine line', 'blackwork': 'heavy blackwork', 'lobo': 'wolf', 'león': 'lion',
+        'rosa': 'rose', 'calavera': 'skull', 'mandalas': 'mandala', 'antebrazo': 'forearm', 'brazo': 'arm', 'tobillo': 'ankle'
     };
     let traducido = texto.toLowerCase().trim();
     for (const [es, en] of Object.entries(diccionario)) {
@@ -240,9 +206,6 @@ function traducirTerminos(texto) {
     return traducido;
 }
 
-// ==========================================
-// 🔥 LÓGICA DE PRESUPUESTO DINÁMICA (CÓDIGO 1)
-// ==========================================
 function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
     const cms = parseInt(tamanoStr.replace(/\D/g, '')) || 0;
     const zonaLow = zona.toLowerCase();
@@ -277,7 +240,6 @@ function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
 // 4. ESCENAS (WIZARDS)
 // ==========================================
 
-// --- CITA (ADMIN) ---
 const citaWizard = new Scenes.WizardScene('cita-wizard',
     (ctx) => { ctx.reply('📅 **NUEVA CITA**\nID Cliente:'); ctx.wizard.state.cita = {}; return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.cita.clienteId = ctx.message.text.trim(); ctx.reply('👤 Nombre:'); return ctx.wizard.next(); },
@@ -303,7 +265,6 @@ const citaWizard = new Scenes.WizardScene('cita-wizard',
     }
 );
 
-// --- PRESUPUESTO COMPLETO ---
 const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     (ctx) => { ctx.reply('⚠️ FORMULARIO DE CITA\n━━━━━━━━━━━━━━━━━━━━\nEscribe tu Nombre Completo:'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('🔞 ¿Edad?', Markup.keyboard([['+18 años', '+16 años'], ['Menor de 16']]).oneTime().resize()); return ctx.wizard.next(); },
@@ -380,9 +341,6 @@ const tattooScene = new Scenes.WizardScene('tattoo-wizard',
     }
 );
 
-// =======================================================================
-// 🔥 SECCIÓN IA ACTUALIZADA (WIZARD COMPLETO + MENSAJE NANOBANANA)
-// =======================================================================
 const iaScene = new Scenes.WizardScene('ia-wizard',
     (ctx) => {
         ctx.wizard.state.ai = {};
@@ -468,9 +426,7 @@ const iaScene = new Scenes.WizardScene('ia-wizard',
         const p = (val) => (val === 'none' ? 'none' : traducirTerminos(val));
         const f = db.fichas[ctx.from.id] || { zona: "body", estilo: "artistic" };
         
-        // CONSTRUCCIÓN DEL PROMPT EXACTO COMO EN LA IMAGEN
         const prompt = `Professional tattoo flash design of ${p(ai.elemento)}, ${p(ai.accion)}. Background: ${p(ai.fondo)}. Lighting: ${p(ai.luz)}. Detail: ${p(ai.detalle)}. Palette: ${p(ai.color)}. Elements: ${p(ai.extra)}. Linework: ${p(ai.lineas)}. Composition: ${p(ai.forma)}. Mood: ${p(ai.sentimiento)}. Optimized for ${traducirTerminos(f.zona)} in ${traducirTerminos(f.estilo)} style. 8k, high contrast, clean white background, master quality.`;
-        
         const encodedPrompt = encodeURIComponent(`Genera una imagen de tatuaje con este prompt en inglés: ${prompt}`);
         const geminiUrl = `https://gemini.google.com/app?q=${encodedPrompt}`;
 
@@ -487,8 +443,6 @@ const iaScene = new Scenes.WizardScene('ia-wizard',
         return ctx.scene.leave();
     }
 );
-// =======================================================================
-
 
 // --- MINERÍA (JUEGO) ---
 const mineScene = new Scenes.BaseScene('mine-scene');
@@ -498,16 +452,38 @@ mineScene.enter((ctx) => {
         [Markup.button.callback('💉 INYECTAR', 'minar')], [Markup.button.callback('⬅️ Salir', 'salir')]
     ]));
 });
-mineScene.action('minar', (ctx) => {
+
+// 🔥 MODIFICACIÓN: ACTUALIZA TEXTO 0/1000 AL PULSAR
+mineScene.action('minar', async (ctx) => {
     const uid = ctx.from.id;
     db.clics[uid] = (db.clics[uid] || 0) + 1;
     guardar();
-    if (db.clics[uid] >= 1000) { ctx.reply('🎉 **¡TANQUE LLENO!** Ganaste un tattoo 20€. Haz captura.'); db.clics[uid] = 0; guardar(); return ctx.scene.leave(); }
-    ctx.answerCbQuery(`Nivel: ${db.clics[uid]}`);
+    
+    // Si completa el tanque
+    if (db.clics[uid] >= 1000) { 
+        ctx.reply('🎉 **¡TANQUE LLENO!** Ganaste un tattoo 20€. Haz captura.'); 
+        db.clics[uid] = 0; 
+        guardar(); 
+        return ctx.scene.leave(); 
+    }
+
+    // Actualizar mensaje visualmente (Efecto contador)
+    try {
+        await ctx.editMessageText(
+            `💉 **MINERÍA DE TINTA**\nLlenado: ${db.clics[uid]}/1000 ml\n🎁 1000ml = Tatuaje 20€ Gratis`,
+            Markup.inlineKeyboard([
+                [Markup.button.callback('💉 INYECTAR', 'minar')], 
+                [Markup.button.callback('⬅️ Salir', 'salir')]
+            ])
+        );
+    } catch (e) {
+        // Ignorar error si el mensaje no cambió (anti-spam)
+    }
+    
+    ctx.answerCbQuery(); // Responder sin alerta de texto
 });
 mineScene.action('salir', (ctx) => { ctx.scene.leave(); return irAlMenuPrincipal(ctx); });
 
-// --- CANJE DE PREMIO RULETA (ADMIN) ---
 const canjeWizard = new Scenes.WizardScene('canje-wizard',
     (ctx) => { ctx.reply('🏦 **INVENTARIO CLIENTE**\nID Cliente:'); return ctx.wizard.next(); },
     async (ctx) => {
@@ -524,7 +500,6 @@ const canjeWizard = new Scenes.WizardScene('canje-wizard',
         const idx = parseInt(ctx.callbackQuery.data.split('_')[1]);
         const p = db.inventario[ctx.wizard.state.canje.cid][idx];
         
-        // BORRAR PREMIO
         db.inventario[ctx.wizard.state.canje.cid].splice(idx, 1);
         guardar();
         
@@ -533,8 +508,8 @@ const canjeWizard = new Scenes.WizardScene('canje-wizard',
     }
 );
 
-// OTROS WIZARDS SIMPLES
-const diccionarioScene = new Scenes.WizardScene('diccionario-scene', (ctx) => { ctx.reply('📚 Símbolo (ej: león):'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Significado: ...'); return ctx.scene.leave(); });
+// DICCIONARIO CORREGIDO "📚 Símbolo:"
+const diccionarioScene = new Scenes.WizardScene('diccionario-scene', (ctx) => { ctx.reply('📚 Símbolo:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Significado: ...'); return ctx.scene.leave(); });
 const probadorScene = new Scenes.WizardScene('probador-scene', (ctx) => { ctx.reply('📸 Envía foto cuerpo:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Ahora diseño...'); return ctx.scene.leave(); });
 const panicoScene = new Scenes.WizardScene('panico-scene', (ctx) => { notificarAdmin(ctx, '🚨 PÁNICO'); ctx.reply('1. ¿Calor?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('2. ¿Pus?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('3. ¿Fiebre?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Resultado...'); return ctx.scene.leave(); });
 const regaloScene = new Scenes.WizardScene('regalo-scene', (ctx) => { ctx.reply('Nombre:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Importe:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Generada.'); return ctx.scene.leave(); });
@@ -554,7 +529,6 @@ bot.start((ctx) => {
     const uid = String(ctx.from.id);
     const text = ctx.message.text;
     
-    // SISTEMA REFERIDOS
     if (text.includes('start=')) {
         const inviterId = text.split('=')[1];
         if (inviterId != uid && !db.invitados[uid]) {
@@ -567,6 +541,7 @@ bot.start((ctx) => {
     return irAlMenuPrincipal(ctx);
 });
 
+// 🔥 MENÚ PRINCIPAL CORREGIDO (IMAGEN 1)
 function irAlMenuPrincipal(ctx) {
     if (db.mantenimiento && ctx.from.id.toString() !== MI_ID.toString()) return ctx.reply('🛠️ Mantenimiento. Volvemos pronto.');
     
@@ -577,10 +552,9 @@ function irAlMenuPrincipal(ctx) {
     ];
     if (ctx.from.id.toString() === MI_ID.toString()) botones.push(['📊 Panel Admin']);
     
-    return ctx.reply(`✨ SPICY INK ✨\nTu estudio digital.`, Markup.keyboard(botones).resize());
+    return ctx.reply(`✨ MENÚ PRINCIPAL ✨`, Markup.keyboard(botones).resize());
 }
 
-// HANDLERS MENÚ
 bot.hears('🔥 Cita / Presupuesto', (ctx) => ctx.scene.enter('tattoo-wizard'));
 bot.hears('🎁 Tarjetas Regalo', (ctx) => ctx.scene.enter('regalo-scene'));
 
@@ -593,7 +567,6 @@ bot.hears('👤 Mi Perfil', (ctx) => {
     ctx.reply(msg, { parse_mode: 'Markdown' });
 });
 
-// ZONA FUN
 bot.hears('🎮 Zona Fun', (ctx) => {
     ctx.reply('🎢 **ZONA FUN**', Markup.keyboard([
         ['🎰 Tirar Ruleta', '🤖 IA: ¿Qué me tatuo?'],
@@ -605,7 +578,7 @@ bot.hears('🎮 Zona Fun', (ctx) => {
 
 bot.action('nueva_ia', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('ia-wizard'); });
 
-// CLUB VIP (Fusión: Minar + Referidos + Puntos)
+// 🔥 CLUB VIP CORREGIDO (IMAGEN 6)
 bot.hears('💎 Club VIP', (ctx) => {
     const uid = ctx.from.id;
     const refs = db.referidos[uid] || 0;
@@ -629,23 +602,42 @@ bot.hears('🎰 Tirar Ruleta', (ctx) => {
     const msg = `🎰 **RULETA DIARIA**\n1 Tirada cada 24h.\n\n👇 ¡JUEGA AHORA! 👇`;
     ctx.reply(msg, Markup.inlineKeyboard([[Markup.button.webApp('🚀 ABRIR', `${URL_WEB}/ruleta`)]]));
 });
-bot.hears('🚑 SOS & Cuidados', (ctx) => ctx.reply('🏥', Markup.keyboard([['🚨 PÁNICO', '⏰ Alarma Crema'], ['🩸 Dolor', '🧼 Guía'], ['⬅️ Volver']]).resize()));
+
+// 🔥 SOS & CUIDADOS CORREGIDO (IMAGEN 5)
+// Ahora usa Botones Inline como en la captura
+bot.hears('🚑 SOS & Cuidados', (ctx) => {
+    ctx.reply('🏥 **CUIDADOS**', Markup.inlineKeyboard([
+        [Markup.button.callback('🚨 PÁNICO', 'sos_panico'), Markup.button.callback('⏰ Alarma Crema', 'sos_alarma')],
+        [Markup.button.callback('🩸 Dolor', 'sos_dolor'), Markup.button.callback('🧼 Guía', 'sos_guia')],
+        [Markup.button.callback('⬅️ Volver', 'sos_volver')]
+    ]));
+});
+
+// Acciones para los botones inline de SOS
+bot.action('sos_panico', (ctx) => { ctx.answerCbQuery(); ctx.scene.enter('panico-scene'); });
+bot.action('sos_alarma', (ctx) => { 
+    const uid = String(ctx.from.id);
+    if (db.alarmas[uid]) { delete db.alarmas[uid]; ctx.reply('🔕 Alarma OFF'); }
+    else { db.alarmas[uid] = Date.now(); ctx.reply('🔔 Alarma ON (Cada 4h)'); }
+    ctx.answerCbQuery(); 
+});
+bot.action('sos_dolor', (ctx) => { ctx.reply('Selecciona zona:', Markup.inlineKeyboard([[Markup.button.callback('Brazo', 'd_3')]])); ctx.answerCbQuery(); });
+bot.action('sos_guia', (ctx) => { ctx.reply('Lavar, Secar, Crema. 3 veces/día.'); ctx.answerCbQuery(); });
+bot.action('sos_volver', (ctx) => { ctx.deleteMessage(); irAlMenuPrincipal(ctx); }); // Borra el menú inline y muestra el principal
+bot.action('d_3', (ctx) => ctx.answerCbQuery('Nivel: 3/10', {show_alert:true}));
+
+
 bot.hears('⬅️ Volver', (ctx) => irAlMenuPrincipal(ctx));
 bot.hears('🧼 Guía', (ctx) => ctx.reply('Lavar, Secar, Crema. 3 veces/día.'));
 bot.hears('🩸 Dolor', (ctx) => ctx.reply('Selecciona zona:', Markup.inlineKeyboard([[Markup.button.callback('Brazo', 'd_3')]])));
-bot.action('d_3', (ctx) => ctx.answerCbQuery('Nivel: 3/10', {show_alert:true}));
 
-// ==========================================
-// 6. LÓGICA RULETA (WEBAPP)
-// ==========================================
+
 bot.on('web_app_data', (ctx) => {
     const uid = String(ctx.from.id);
     const hoy = new Date().toDateString();
     
-    // 1. SANCIONES
     if (db.sanciones[uid] && db.sanciones[uid] > Date.now()) return ctx.reply('🚫 Sancionado.');
 
-    // 2. JUGÓ HOY?
     if (db.ultima_ruleta[uid] === hoy) {
         let intentos = (db.intentos_ruleta[uid] || 1) + 1;
         db.intentos_ruleta[uid] = intentos;
@@ -658,7 +650,6 @@ bot.on('web_app_data', (ctx) => {
         return ctx.reply('🛑 Ya jugaste hoy.');
     }
 
-    // 3. OK
     const data = JSON.parse(ctx.webAppData.data);
     db.ultima_ruleta[uid] = hoy;
     db.intentos_ruleta[uid] = 1;
@@ -673,24 +664,16 @@ bot.on('web_app_data', (ctx) => {
     guardar();
 });
 
-// ==========================================
-// 7. PANEL ADMIN COMPLETO
-// ==========================================
+// 🔥 PANEL ADMIN CORREGIDO (IMAGEN 1)
 bot.hears('📊 Panel Admin', (ctx) => {
     if (ctx.from.id.toString() !== MI_ID.toString()) return;
-    const estadoMant = db.mantenimiento ? '🔴 ON' : '🟢 OFF';
-    ctx.reply(`🛠️ **ADMIN** | Mant: ${estadoMant}`, Markup.inlineKeyboard([
-        [Markup.button.callback('👥 Usuarios', 'adm_users'), Markup.button.callback('📅 Nueva Cita', 'admin_cita')],
-        [Markup.button.callback('🎁 Canjear Ruleta', 'admin_canje'), Markup.button.callback('🗓️ Calendario', 'adm_cal')],
-        [Markup.button.callback('📢 Difusión', 'adm_broad'), Markup.button.callback('🛠️ Mantenimiento', 'adm_mant')],
-        [Markup.button.callback('📜 Legal', 'adm_legal'), Markup.button.callback('🎟️ Cupón', 'adm_cup')]
+    ctx.reply('🛠️ **PANEL**', Markup.inlineKeyboard([
+        [Markup.button.callback('👥 Lista', 'adm_users'), Markup.button.callback('📅 Nueva Cita', 'admin_cita')],
+        [Markup.button.callback('🗓️ Calendario', 'adm_cal'), Markup.button.callback('📢 Difusión', 'adm_broad')]
     ]));
 });
 
-// Acciones Admin
 bot.action('adm_users', (ctx) => { ctx.reply(`Usuarios: ${Object.keys(db.fichas).length + Object.keys(db.inventario).length}`); ctx.answerCbQuery(); });
-bot.action('adm_mant', (ctx) => { db.mantenimiento = !db.mantenimiento; guardar(); ctx.reply(`Mantenimiento: ${db.mantenimiento}`); ctx.answerCbQuery(); });
-bot.action('adm_legal', (ctx) => { ctx.reply('Texto legal para enviar: "Yo confirmo que soy mayor de edad..."'); ctx.answerCbQuery(); });
 bot.action('adm_cal', (ctx) => { 
     const citas = db.citas.filter(c => c.fecha > Date.now()).map(c => `${c.fechaTexto} - ${c.nombre}`).join('\n');
     ctx.reply(citas || "Sin citas futuras."); ctx.answerCbQuery(); 
@@ -700,7 +683,6 @@ bot.action('admin_canje', (ctx) => ctx.scene.enter('canje-wizard'));
 bot.action('adm_broad', (ctx) => ctx.scene.enter('broadcast-wizard'));
 bot.action('adm_cup', (ctx) => ctx.scene.enter('coupon-wizard'));
 
-// CRON RECORDATORIOS
 setInterval(() => {
     const ahora = Date.now();
     db.citas.forEach(c => {
@@ -711,4 +693,4 @@ setInterval(() => {
     });
 }, 60000);
 
-bot.launch().then(() => console.log('🚀 SpicyInk V14 (IA NanoBanana + Prompt Update)'));
+bot.launch().then(() => console.log('🚀 SpicyInk V15 (Diseño Idéntico a Imágenes)'));
