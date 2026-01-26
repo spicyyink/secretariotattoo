@@ -10,7 +10,7 @@ const Jimp = require('jimp');
 // ==========================================
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Tatuador Online - V6.0 (Notificaciones Admin) ✅');
+    res.end('Tatuador Online - V8.0 (Mapa de Dolor Completo) ✅');
 });
 
 const PORT = process.env.PORT || 3000;
@@ -48,18 +48,14 @@ function guardar() {
 }
 
 // ==========================================
-// 3. UTILIDADES (Y NOTIFICADOR NUEVO)
+// 3. UTILIDADES (Y NOTIFICADOR)
 // ==========================================
-
-// --- NUEVA FUNCIÓN DE NOTIFICACIÓN ---
 const notificarAdmin = (ctx, accion) => {
-    // No notificar si eres tú mismo quien toca los botones
     if (ctx.from.id.toString() !== MI_ID.toString()) {
         const usuario = ctx.from.first_name || "Desconocido";
         const id = ctx.from.id;
         const username = ctx.from.username ? `@${ctx.from.username}` : "Sin alias";
-        
-        bot.telegram.sendMessage(MI_ID, `🔔 **ACTIVIDAD DETECTADA**\n\n👤 **Usuario:** ${usuario} (${username})\n🆔 **ID:** \`${id}\`\n🔘 **Acción:** ${accion}`, { parse_mode: 'Markdown' }).catch(err => console.log("Error notificando admin"));
+        bot.telegram.sendMessage(MI_ID, `🔔 **ACTIVIDAD DETECTADA**\n\n👤 **Usuario:** ${usuario} (${username})\n🆔 **ID:** \`${id}\`\n🔘 **Acción:** ${accion}`, { parse_mode: 'Markdown' }).catch(err => console.log("Error notificando"));
     }
 };
 
@@ -126,7 +122,6 @@ const bola8Respuestas = [
 // 4. ESCENAS
 // ==========================================
 
-// --- PROBADOR VIRTUAL (2 FOTOS) ---
 const probadorScene = new Scenes.WizardScene('probador-scene',
     (ctx) => {
         ctx.reply('🕶️ **PROBADOR VIRTUAL**\n1️⃣ Envía una **FOTO DE TU CUERPO**.');
@@ -163,7 +158,6 @@ const probadorScene = new Scenes.WizardScene('probador-scene',
     }
 );
 
-// --- OTRAS ESCENAS ---
 const citaWizard = new Scenes.WizardScene('cita-wizard',
     (ctx) => { ctx.reply('📅 **NUEVA CITA**\nID Cliente:'); ctx.wizard.state.cita = {}; return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.cita.clienteId = ctx.message.text.trim(); ctx.reply('👤 Nombre:'); return ctx.wizard.next(); },
@@ -207,19 +201,13 @@ const panicoScene = new Scenes.WizardScene('panico-scene', (ctx) => { notificarA
 const regaloScene = new Scenes.WizardScene('regalo-scene', (ctx) => { ctx.reply('Nombre:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Importe:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Gift Card generada.'); return ctx.scene.leave(); });
 const cumpleScene = new Scenes.WizardScene('cumple-scene', (ctx) => { ctx.reply('Fecha DD/MM:'); return ctx.wizard.next(); }, (ctx) => { db.cumples[ctx.from.id] = ctx.message.text; guardar(); ctx.reply('Guardado'); return ctx.scene.leave(); });
 
-// ==========================================
-// 5. REGISTRO Y MENÚS
-// ==========================================
 const stage = new Scenes.Stage([tattooScene, mineScene, iaScene, couponScene, broadcastScene, reminderScene, citaWizard, probadorScene, diccionarioScene, panicoScene, regaloScene, cumpleScene]);
 bot.use(session());
 bot.use(stage.middleware());
 
-// --- START CON NOTIFICACIÓN ---
+// --- START ---
 bot.start((ctx) => {
-    // 1. Notificar al Admin
     notificarAdmin(ctx, '🚀 START (Nuevo Usuario o Reinicio)');
-    
-    // 2. Lógica de referidos
     const text = ctx.message.text;
     if (text.includes('start=')) {
         const inviterId = text.split('=')[1];
@@ -244,33 +232,9 @@ function irAlMenuPrincipal(ctx) {
     return ctx.reply(`✨ MENÚ PRINCIPAL ✨`, Markup.keyboard(botones).resize());
 }
 
-// --- HANDLERS CON NOTIFICACIÓN ---
-bot.hears('🔥 Cita / Presupuesto', (ctx) => {
-    notificarAdmin(ctx, '🔥 Cita / Presupuesto');
-    ctx.scene.enter('tattoo-wizard');
-});
-
-bot.hears('🎮 Zona Fun', (ctx) => {
-    notificarAdmin(ctx, '🎮 Zona Fun');
-    ctx.reply('🎢 **ZONA FUN**', Markup.keyboard([['🎰 Ruleta', '🔮 Oráculo'], ['🎱 Bola 8', '📚 Diccionario'], ['🕶️ Probador 2.0', '⬅️ Volver']]).resize());
-});
-
-bot.hears('🚑 SOS & Cuidados', (ctx) => {
-    notificarAdmin(ctx, '🚑 SOS & Cuidados');
-    ctx.reply('🏥 **CUIDADOS**', Markup.keyboard([['🚨 PÁNICO', '⏰ Alarma Crema'], ['🩸 Dolor', '🧼 Guía'], ['⬅️ Volver']]).resize());
-});
-
-bot.hears('💎 Club VIP', (ctx) => {
-    notificarAdmin(ctx, '💎 Club VIP');
-    const pts = db.puntos[ctx.from.id] || 0;
-    ctx.reply(`💎 **PUNTOS:** ${pts}`, Markup.inlineKeyboard([[Markup.button.callback('📅 Mi Cumple', 'set_cumple')], [Markup.button.callback('💉 Minar', 'ir_minar')]]));
-});
-
-bot.hears('🎁 Tarjetas Regalo', (ctx) => {
-    notificarAdmin(ctx, '🎁 Tarjetas Regalo');
-    ctx.scene.enter('regalo-scene');
-});
-
+// --- HANDLERS MENÚ ---
+bot.hears('🔥 Cita / Presupuesto', (ctx) => { notificarAdmin(ctx, '🔥 Cita / Presupuesto'); ctx.scene.enter('tattoo-wizard'); });
+bot.hears('🎁 Tarjetas Regalo', (ctx) => { notificarAdmin(ctx, '🎁 Tarjetas Regalo'); ctx.scene.enter('regalo-scene'); });
 bot.hears('👤 Mi Perfil', (ctx) => {
     notificarAdmin(ctx, '👤 Mi Perfil');
     const u = ctx.from;
@@ -279,7 +243,73 @@ bot.hears('👤 Mi Perfil', (ctx) => {
     ctx.reply(`👤 **MI PERFIL**\n\n🆔 ID: \`${u.id}\`\n📛 Nombre: ${u.first_name}\n💎 Puntos: ${pts}\n📅 Citas: ${citas}`, {parse_mode: 'Markdown'});
 });
 
-// --- LÓGICA INTERNA (SUBMENÚS) ---
+// SUBMENÚS
+bot.hears('🎮 Zona Fun', (ctx) => {
+    notificarAdmin(ctx, '🎮 Zona Fun');
+    ctx.reply('🎢 **ZONA FUN**', Markup.keyboard([
+        ['🎰 Ruleta', '🔮 Oráculo'], 
+        ['🎱 Bola 8', '📚 Diccionario'], 
+        ['🕶️ Probador 2.0', '💬 Otro (Contactar)'], 
+        ['⬅️ Volver']
+    ]).resize());
+});
+
+bot.hears('🚑 SOS & Cuidados', (ctx) => {
+    notificarAdmin(ctx, '🚑 SOS & Cuidados');
+    ctx.reply('🏥 **CUIDADOS**', Markup.keyboard([
+        ['🚨 PÁNICO', '⏰ Alarma Crema'], 
+        ['🩸 Dolor', '🧼 Guía'], 
+        ['💬 Otro (Contactar)'], 
+        ['⬅️ Volver']
+    ]).resize());
+});
+
+bot.hears('💎 Club VIP', (ctx) => {
+    notificarAdmin(ctx, '💎 Club VIP');
+    const pts = db.puntos[ctx.from.id] || 0;
+    ctx.reply(`💎 **PUNTOS:** ${pts}`, Markup.inlineKeyboard([
+        [Markup.button.callback('📅 Mi Cumple', 'set_cumple')], 
+        [Markup.button.callback('💉 Minar', 'ir_minar')]
+    ]));
+});
+
+// CONTACTO
+bot.hears('💬 Otro (Contactar)', (ctx) => {
+    notificarAdmin(ctx, '💬 Pulsó Contacto Directo');
+    const enlaceDirecto = `tg://user?id=${MI_ID}`;
+    ctx.reply(`📩 **CONTACTO DIRECTO**\n\n¿Tienes otra duda? Pulsa el botón de abajo para hablar directamente conmigo:`, 
+        Markup.inlineKeyboard([
+            [Markup.button.url('📲 Hablar con el Tatuador', enlaceDirecto)]
+        ])
+    );
+});
+
+// --- LÓGICA FUN & CARE (DOLOR ACTUALIZADO) ---
+bot.hears('🩸 Dolor', (ctx) => {
+    notificarAdmin(ctx, '🩸 Mirando Dolor');
+    // MAPA DE DOLOR COMPLETO
+    ctx.reply('🔥 **MEDIDOR DE DOLOR**\nSelecciona la zona para ver el nivel (1-10):', Markup.inlineKeyboard([
+        [Markup.button.callback('💪 Antebrazo', 'd_3'), Markup.button.callback('🦵 Muslo', 'd_4')],
+        [Markup.button.callback('🔙 Espalda', 'd_5'), Markup.button.callback('🦶 Gemelo', 'd_4')],
+        [Markup.button.callback('🧣 Cuello', 'd_7'), Markup.button.callback('✋ Mano', 'd_7')],
+        [Markup.button.callback('🦴 Esternón', 'd_8'), Markup.button.callback('👣 Pie', 'd_8')],
+        [Markup.button.callback('💀 Costillas', 'd_9'), Markup.button.callback('🦵 Rodilla', 'd_9')],
+        [Markup.button.callback('🌵 Columna', 'd_10'), Markup.button.callback('🤕 Cabeza', 'd_9')]
+    ]));
+});
+
+// Acción Dolor actualizada para soportar más de un dígito (10)
+bot.action(/d_(\d+)/, (ctx) => {
+    const nivel = parseInt(ctx.match[1]);
+    let msg = `🔥 Nivel: ${nivel}/10\n`;
+    if (nivel <= 3) msg += "😎 Paseo por el parque.";
+    else if (nivel <= 5) msg += "😬 Molesto pero aguantable.";
+    else if (nivel <= 7) msg += "😤 Ya pica bastante.";
+    else if (nivel <= 9) msg += "🥵 ¡Solo para guerreros!";
+    else msg += "💀 VERDADERO DOLOR.";
+    ctx.answerCbQuery(msg, { show_alert: true });
+});
+
 bot.hears('🎰 Ruleta', (ctx) => {
     notificarAdmin(ctx, '🎰 Jugando Ruleta');
     const uid = ctx.from.id; const hoy = new Date().toDateString();
@@ -292,8 +322,6 @@ bot.hears('🎰 Ruleta', (ctx) => {
     guardar();
 });
 
-bot.hears('🩸 Dolor', (ctx) => { notificarAdmin(ctx, '🩸 Mirando Dolor'); ctx.reply('Zona:', Markup.inlineKeyboard([[Markup.button.callback('Costillas', 'd_9'), Markup.button.callback('Brazo', 'd_3')]])); });
-bot.action(/d_(\d)/, (ctx) => ctx.answerCbQuery(`Nivel ${ctx.match[1]}/10`, { show_alert: true }));
 bot.hears('🔮 Oráculo', (ctx) => { notificarAdmin(ctx, '🔮 Oráculo'); ctx.reply(`🔮 ${oraculoFrases[Math.floor(Math.random()*oraculoFrases.length)]}`); });
 bot.hears('🎱 Bola 8', (ctx) => { notificarAdmin(ctx, '🎱 Bola 8'); ctx.reply(bola8Respuestas[Math.floor(Math.random()*bola8Respuestas.length)]); });
 bot.hears('⏰ Alarma Crema', (ctx) => { 
@@ -311,7 +339,7 @@ bot.action('ir_minar', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('m
 bot.hears('⬅️ Volver', (ctx) => irAlMenuPrincipal(ctx));
 bot.hears('🧼 Guía', (ctx) => { notificarAdmin(ctx, '🧼 Guía Cuidados'); ctx.reply('Lavar, Secar, Crema. 3 veces/día.'); });
 
-// Panel Admin (sin notificar porque eres tú)
+// Panel Admin
 bot.hears('📊 Panel Admin', (ctx) => {
     if (ctx.from.id.toString() !== MI_ID.toString()) return;
     return ctx.reply('🛠️ **PANEL**', Markup.inlineKeyboard([
@@ -344,4 +372,4 @@ setInterval(() => {
     });
 }, 60000);
 
-bot.launch().then(() => console.log('🚀 SpicyInk V6.0 (Notificaciones Activas)'));
+bot.launch().then(() => console.log('🚀 SpicyInk V8.0 (Mapa Dolor Completo + Contacto)'));
