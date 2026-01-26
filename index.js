@@ -102,7 +102,7 @@ const server = http.createServer((req, res) => {
         res.end(HTML_RULETA);
     } else {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Tatuador Online - V19.0 (Bugfix Citas) ✅');
+        res.end('Tatuador Online - V21.0 (SOS Profesional & Completo) ✅');
     }
 });
 
@@ -122,7 +122,7 @@ let db = {
     fichas: {}, puntos: {}, cupones: {}, citas: [], 
     alarmas: {}, cumples: {}, 
     ultima_ruleta: {}, sanciones: {}, intentos_ruleta: {}, 
-    inventario: {}, 
+    inventario: {}, tarjetas_regalo: {},
     mantenimiento: false 
 };
 
@@ -143,6 +143,7 @@ if (fs.existsSync(DATA_FILE)) {
         if (!db.clics) db.clics = {}; 
         if (db.mantenimiento === undefined) db.mantenimiento = false;
         if (!db.cupones) db.cupones = {};
+        if (!db.tarjetas_regalo) db.tarjetas_regalo = {};
     } catch (e) { console.log("❌ Error cargando DB."); }
 } else {
     guardar();
@@ -237,11 +238,77 @@ function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
     return base;
 }
 
+function generarCodigoRegalo() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = 'GIFT-';
+    for (let i = 0; i < 8; i++) {
+        if (i === 4) code += '-';
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+}
+
 // ==========================================
 // 4. ESCENAS (WIZARDS)
 // ==========================================
 
-// --- CITA (ADMIN) - MODIFICADO PARA ARREGLAR UNDEFINED ---
+// --- 🔥 NUEVA ESCENA PROFESIONAL: EVALUADOR DE INFECCIÓN (PÁNICO) ---
+const panicoScene = new Scenes.WizardScene('panico-scene',
+    (ctx) => {
+        ctx.wizard.state.sintomas = 0;
+        ctx.reply('🚨 **EVALUADOR DE RIESGOS**\n━━━━━━━━━━━━━━━━━━━━\nVoy a hacerte 3 preguntas rápidas para detectar posibles infecciones.\n\n1️⃣ **¿La zona tatuada desprende calor excesivo y el enrojecimiento se está expandiendo fuera de las líneas?**', 
+            Markup.inlineKeyboard([
+                [Markup.button.callback('🔥 Sí, está ardiendo', 'si')],
+                [Markup.button.callback('✅ No, es normal', 'no')]
+            ]));
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        if (ctx.callbackQuery) {
+            if (ctx.callbackQuery.data === 'si') ctx.wizard.state.sintomas++;
+            ctx.answerCbQuery();
+        }
+        ctx.reply('2️⃣ **¿Observas secreción de pus (líquido espeso amarillo/verde) o mal olor?**\n*(Nota: La tinta y plasma normal es transparente o del color del tattoo)*', 
+            Markup.inlineKeyboard([
+                [Markup.button.callback('⚠️ Sí, hay pus/olor', 'si')],
+                [Markup.button.callback('✅ No, solo plasma', 'no')]
+            ]));
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        if (ctx.callbackQuery) {
+            if (ctx.callbackQuery.data === 'si') ctx.wizard.state.sintomas++;
+            ctx.answerCbQuery();
+        }
+        ctx.reply('3️⃣ **¿Tienes fiebre (más de 37.5°C), temblores o inflamación severa en los ganglios?**', 
+            Markup.inlineKeyboard([
+                [Markup.button.callback('🤒 Sí, tengo fiebre', 'si')],
+                [Markup.button.callback('✅ No, estoy bien', 'no')]
+            ]));
+        return ctx.wizard.next();
+    },
+    async (ctx) => {
+        if (ctx.callbackQuery) {
+            if (ctx.callbackQuery.data === 'si') ctx.wizard.state.sintomas++;
+            ctx.answerCbQuery();
+        }
+
+        const score = ctx.wizard.state.sintomas;
+        let diagnosis = "";
+        
+        if (score >= 1) {
+            diagnosis = `⚠️ **ALERTA: POSIBLE INFECCIÓN**\n━━━━━━━━━━━━━━━━━━━━\nHas marcado **${score}/3 síntomas** preocupantes.\n\n❌ **ACCIÓN REQUERIDA:**\n1. No apliques más crema.\n2. Lava la zona con agua y jabón neutro.\n3. **Ve al médico inmediatamente**.\n4. He notificado al tatuador de tu situación.\n\n*Nota: Esto no es un diagnóstico médico oficial, pero indica riesgo alto.*`;
+            notificarAdmin(ctx, `🚨 **ALERTA MÉDICA (Pánico)**\nEl usuario reportó ${score} síntomas de infección.`);
+        } else {
+            diagnosis = `✅ **TODO PARECE NORMAL**\n━━━━━━━━━━━━━━━━━━━━\nEs completamente normal sentir ardor ("efecto quemadura solar") y ver suero con tinta los primeros 2-3 días.\n\nSigue con la limpieza habitual y no te rasques. Si empeora, vuelve a consultar.`;
+        }
+
+        await ctx.reply(diagnosis, { parse_mode: 'Markdown' });
+        return ctx.scene.leave();
+    }
+);
+// -----------------------------------------------------------
+
 const citaWizard = new Scenes.WizardScene('cita-wizard',
     (ctx) => { ctx.reply('📅 **NUEVA CITA**\nID Cliente:'); ctx.wizard.state.cita = {}; return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.cita.clienteId = ctx.message.text.trim(); ctx.reply('👤 Nombre:'); return ctx.wizard.next(); },
@@ -252,7 +319,7 @@ const citaWizard = new Scenes.WizardScene('cita-wizard',
             const f = parsearFecha(ctx.message.text);
             if (isNaN(f.getTime())) throw new Error();
             ctx.wizard.state.cita.timestamp = f.getTime();
-            ctx.wizard.state.cita.fechaStr = ctx.message.text; // Guardamos la fecha texto aquí
+            ctx.wizard.state.cita.fechaStr = ctx.message.text; 
             ctx.reply('💉 Tatuaje:'); return ctx.wizard.next();
         } catch (e) { ctx.reply('❌ Fecha mal (DD/MM/YYYY HH:MM).'); return; }
     },
@@ -271,16 +338,10 @@ const citaWizard = new Scenes.WizardScene('cita-wizard',
         db.citas.push(nc); 
         guardar();
         
-        // AVISO AL CLIENTE
         try { 
-            // CORRECCIÓN AQUÍ: usamos st.fechaStr en lugar de st.fechaTexto
             await ctx.telegram.sendMessage(st.clienteId, `📅 **CITA CONFIRMADA**\n${st.nombre}, te esperamos el ${st.fechaStr}\n\n💉 **Trabajo:** ${nc.descripcion}\n⏰ **Recordatorio:** Te avisaré 24h antes.`); 
-        } catch(e) {
-            ctx.reply('⚠️ No se pudo enviar mensaje al cliente (¿Me ha bloqueado?).');
-        }
+        } catch(e) {}
 
-        // AVISO AL ADMIN
-        // CORRECCIÓN AQUÍ TAMBIÉN
         const ics = generarICS(new Date(st.timestamp), st.nombre, ctx.message.text, st.telefono);
         await ctx.replyWithDocument({ source: Buffer.from(ics), filename: 'cita.ics' }, { 
             caption: `✅ **CITA AGENDADA**\n\n👤 ${st.nombre}\n📅 ${st.fechaStr}\n📞 ${st.telefono}\n\n🔔 He notificado al cliente y programado el aviso de 24h.` 
@@ -290,7 +351,6 @@ const citaWizard = new Scenes.WizardScene('cita-wizard',
     }
 );
 
-// ESCENA CUPÓN
 const couponScene = new Scenes.WizardScene('coupon-wizard',
     (ctx) => { ctx.reply('🎟️ **CREAR CUPÓN**\nEscribe el código (ej: PROMO10):'); return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.code = ctx.message.text; ctx.reply('💰 Valor en puntos (ej: 50):'); return ctx.wizard.next(); },
@@ -302,13 +362,12 @@ const couponScene = new Scenes.WizardScene('coupon-wizard',
     }
 );
 
-// ESCENA DIFUSIÓN
 const broadcastScene = new Scenes.WizardScene('broadcast-wizard',
     (ctx) => { ctx.reply('📢 **DIFUSIÓN GLOBAL**\nEscribe el mensaje para TODOS los usuarios:'); return ctx.wizard.next(); },
     async (ctx) => {
         const msg = ctx.message.text;
-        const users = Object.keys(db.fichas).concat(Object.keys(db.puntos)); // Lista aproximada de usuarios activos
-        const uniqueUsers = [...new Set(users)]; // Eliminar duplicados
+        const users = Object.keys(db.fichas).concat(Object.keys(db.puntos)); 
+        const uniqueUsers = [...new Set(users)]; 
         
         ctx.reply(`🚀 Enviando a ${uniqueUsers.length} usuarios...`);
         for (const uid of uniqueUsers) {
@@ -319,7 +378,6 @@ const broadcastScene = new Scenes.WizardScene('broadcast-wizard',
     }
 );
 
-// ESCENA RECORDATORIO MANUAL
 const reminderScene = new Scenes.WizardScene('reminder-wizard',
     (ctx) => { ctx.reply('⏰ **RECORDATORIO MANUAL**\nIntroduce ID del usuario:'); return ctx.wizard.next(); },
     (ctx) => { ctx.wizard.state.uid = ctx.message.text; ctx.reply('Escribe el mensaje de recordatorio:'); return ctx.wizard.next(); },
@@ -511,7 +569,6 @@ const iaScene = new Scenes.WizardScene('ia-wizard',
     }
 );
 
-// --- MINERÍA (JUEGO) ---
 const mineScene = new Scenes.BaseScene('mine-scene');
 mineScene.enter((ctx) => {
     const uid = ctx.from.id;
@@ -570,11 +627,102 @@ const canjeWizard = new Scenes.WizardScene('canje-wizard',
     }
 );
 
-// DICCIONARIO
+const regaloScene = new Scenes.WizardScene('regalo-scene',
+    (ctx) => {
+        ctx.wizard.state.card = {};
+        ctx.reply('🎁 **CREAR TARJETA REGALO**\n━━━━━━━━━━━━━━━━━━━━\n¿Para quién es esta tarjeta? Escribe su nombre:');
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        ctx.wizard.state.card.para = ctx.message.text;
+        ctx.reply('💰 Selecciona el importe del regalo:', 
+            Markup.inlineKeyboard([
+                [Markup.button.callback('50€', 'amount_50'), Markup.button.callback('100€', 'amount_100')],
+                [Markup.button.callback('150€', 'amount_150'), Markup.button.callback('200€', 'amount_200')],
+                [Markup.button.callback('✏️ Otro importe', 'amount_custom')]
+            ]));
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        if (ctx.callbackQuery) {
+            const selection = ctx.callbackQuery.data;
+            if (selection === 'amount_custom') {
+                ctx.answerCbQuery();
+                ctx.reply('Escribe el importe exacto en € (solo números, ej: 75):');
+                return; 
+            } else {
+                ctx.wizard.state.card.amount = selection.replace('amount_', '');
+                ctx.answerCbQuery();
+                ctx.reply('✍️ ¿Quieres añadir una dedicatoria corta? (Opcional)', Markup.inlineKeyboard([[Markup.button.callback('⏭️ Saltar', 'skip_msg')]]));
+                return ctx.wizard.next();
+            }
+        } else if (ctx.message && ctx.message.text) {
+            const importe = parseInt(ctx.message.text);
+            if (isNaN(importe) || importe <= 0) {
+                ctx.reply('❌ Por favor, escribe un número válido mayor que 0.');
+                return;
+            }
+            ctx.wizard.state.card.amount = importe;
+            ctx.reply('✍️ ¿Quieres añadir una dedicatoria corta? (Opcional)', Markup.inlineKeyboard([[Markup.button.callback('⏭️ Saltar', 'skip_msg')]]));
+            return ctx.wizard.next();
+        }
+    },
+    (ctx) => {
+        if (ctx.callbackQuery && ctx.callbackQuery.data === 'skip_msg') {
+            ctx.wizard.state.card.message = "¡Disfrútalo!";
+            ctx.answerCbQuery();
+        } else {
+            ctx.wizard.state.card.message = ctx.message.text;
+        }
+
+        const c = ctx.wizard.state.card;
+        const resumen = `📋 **RESUMEN TARJETA**\n━━━━━━━━━━━━━━━━━━━━\n👤 **Para:** ${c.para}\n💰 **Importe:** ${c.amount}€\n✉️ **Mensaje:** "${c.message}"\n━━━━━━━━━━━━━━━━━━━━\n¿Todo correcto?`;
+
+        ctx.reply(resumen, Markup.inlineKeyboard([
+            [Markup.button.callback('✅ Confirmar y Generar', 'confirm_card')],
+            [Markup.button.callback('❌ Cancelar', 'cancel_card')]
+        ]));
+        return ctx.wizard.next();
+    },
+    async (ctx) => {
+        if (!ctx.callbackQuery) return;
+        if (ctx.callbackQuery.data === 'cancel_card') {
+            ctx.answerCbQuery('Cancelado');
+            ctx.reply('❌ Operación cancelada.');
+            return ctx.scene.leave();
+        }
+
+        const c = ctx.wizard.state.card;
+        const codigo = generarCodigoRegalo();
+        const now = Date.now();
+
+        db.tarjetas_regalo[codigo] = { ...c, creador: ctx.from.id, fecha: now, canjeado: false };
+        guardar();
+
+        const tarjetaFinal = 
+`✨ **TARJETA REGALO SPICY INK** ✨
+━━━━━━━━━━━━━━━━━━━━
+
+👤 **Para:** ${c.para}
+💰 **Valor:** ${c.amount}€
+
+✉️ **Dedicatoria:**
+"${c.message}"
+
+🎟️ **CÓDIGO DE CANJE:**
+\`${codigo}\`
+
+━━━━━━━━━━━━━━━━━━━━
+*Presenta este código en el estudio para canjear tu regalo.*`;
+
+        await ctx.reply(tarjetaFinal, { parse_mode: 'Markdown' });
+        ctx.answerCbQuery('¡Tarjeta generada con éxito!');
+        return ctx.scene.leave();
+    }
+);
+
 const diccionarioScene = new Scenes.WizardScene('diccionario-scene', (ctx) => { ctx.reply('📚 Símbolo:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Significado: ...'); return ctx.scene.leave(); });
 const probadorScene = new Scenes.WizardScene('probador-scene', (ctx) => { ctx.reply('📸 Envía foto cuerpo:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Ahora diseño...'); return ctx.scene.leave(); });
-const panicoScene = new Scenes.WizardScene('panico-scene', (ctx) => { notificarAdmin(ctx, '🚨 PÁNICO'); ctx.reply('1. ¿Calor?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('2. ¿Pus?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('3. ¿Fiebre?'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Resultado...'); return ctx.scene.leave(); });
-const regaloScene = new Scenes.WizardScene('regalo-scene', (ctx) => { ctx.reply('Nombre:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Importe:'); return ctx.wizard.next(); }, (ctx) => { ctx.reply('Generada.'); return ctx.scene.leave(); });
 const cumpleScene = new Scenes.WizardScene('cumple-scene', (ctx) => { ctx.reply('Fecha DD/MM:'); return ctx.wizard.next(); }, (ctx) => { db.cumples[ctx.from.id] = ctx.message.text; guardar(); ctx.reply('Guardado'); return ctx.scene.leave(); });
 
 const stage = new Scenes.Stage([tattooScene, mineScene, iaScene, canjeWizard, citaWizard, probadorScene, diccionarioScene, panicoScene, regaloScene, cumpleScene, broadcastScene, couponScene, reminderScene]);
@@ -601,7 +749,6 @@ bot.start((ctx) => {
     return irAlMenuPrincipal(ctx);
 });
 
-// 🔥 MENÚ PRINCIPAL
 function irAlMenuPrincipal(ctx) {
     if (db.mantenimiento && ctx.from.id.toString() !== MI_ID.toString()) return ctx.reply('🛠️ Mantenimiento. Volvemos pronto.');
     
@@ -638,7 +785,6 @@ bot.hears('👤 Mi Perfil', (ctx) => {
     ctx.reply(msg, { parse_mode: 'Markdown' });
 });
 
-// ZONA FUN
 bot.hears('🎮 Zona Fun', (ctx) => {
     ctx.reply('🎢 **ZONA FUN**', Markup.keyboard([
         ['🎰 Tirar Ruleta', '🤖 IA: ¿Qué me tatuo?'],
@@ -649,7 +795,6 @@ bot.hears('🎮 Zona Fun', (ctx) => {
 
 bot.action('nueva_ia', (ctx) => { ctx.answerCbQuery(); return ctx.scene.enter('ia-wizard'); });
 
-// CLUB VIP
 bot.hears('💎 Club VIP', (ctx) => {
     const uid = ctx.from.id;
     const refs = db.referidos[uid] || 0;
@@ -674,32 +819,107 @@ bot.hears('🎰 Tirar Ruleta', (ctx) => {
     ctx.reply(msg, Markup.inlineKeyboard([[Markup.button.webApp('🚀 ABRIR', `${URL_WEB}/ruleta`)]]));
 });
 
-// SOS & CUIDADOS
+// 🔥 MODIFICACIÓN: MENÚ SOS PROFESIONAL COMPLEJO
 bot.hears('🚑 SOS & Cuidados', (ctx) => {
-    ctx.reply('🏥 **CUIDADOS**', Markup.inlineKeyboard([
-        [Markup.button.callback('🚨 PÁNICO', 'sos_panico'), Markup.button.callback('⏰ Alarma Crema', 'sos_alarma')],
-        [Markup.button.callback('🩸 Dolor', 'sos_dolor'), Markup.button.callback('🧼 Guía', 'sos_guia')],
+    const menuSOS = Markup.inlineKeyboard([
+        [Markup.button.callback('🚨 EVALUADOR DE INFECCIÓN (IA)', 'sos_panico')], // Botón Grande de Urgencia
+        [Markup.button.callback('🩸 Escala de Dolor', 'sos_dolor'), Markup.button.callback('🧼 Guía de Curación', 'sos_guia')],
+        [Markup.button.callback('⏰ Alarma Curas', 'sos_alarma'), Markup.button.callback('❓ Preguntas Frecuentes', 'sos_faq')],
         [Markup.button.callback('⬅️ Volver', 'sos_volver')]
-    ]));
+    ]);
+    
+    ctx.reply(`🏥 **CENTRO DE CUIDADOS SPICY INK**\n━━━━━━━━━━━━━━━━━━━━\nSelecciona una opción para recibir asistencia inmediata:`, menuSOS);
 });
 
+// ACCIONES SOS MEJORADAS
 bot.action('sos_panico', (ctx) => { ctx.answerCbQuery(); ctx.scene.enter('panico-scene'); });
+
+bot.action('sos_dolor', (ctx) => {
+    ctx.answerCbQuery();
+    ctx.reply('🩸 **MAPA DE DOLOR INTERACTIVO**\nSelecciona una zona para ver el nivel de dolor (1-10):', 
+        Markup.inlineKeyboard([
+            [Markup.button.callback('💀 Costillas (9/10)', 'pain_ribs'), Markup.button.callback('🦴 Esternón (8/10)', 'pain_sternum')],
+            [Markup.button.callback('🦶 Empeine (8/10)', 'pain_foot'), Markup.button.callback('🦵 Rodilla (9/10)', 'pain_knee')],
+            [Markup.button.callback('💪 Brazo Interior (4/10)', 'pain_arm'), Markup.button.callback('🦵 Muslo (3/10)', 'pain_thigh')],
+            [Markup.button.callback('🔙 Volver', 'sos_back_menu')]
+        ])
+    );
+});
+
+// Respuestas del Mapa de Dolor
+bot.action('pain_ribs', (ctx) => ctx.answerCbQuery('🔥 NIVEL 9/10: Muy doloroso. La vibración en el hueso es intensa.', {show_alert: true}));
+bot.action('pain_sternum', (ctx) => ctx.answerCbQuery('🔥 NIVEL 8/10: Dolor agudo y sensación de "corte".', {show_alert: true}));
+bot.action('pain_foot', (ctx) => ctx.answerCbQuery('🔥 NIVEL 8/10: Piel fina y muchos huesos. Pica bastante.', {show_alert: true}));
+bot.action('pain_knee', (ctx) => ctx.answerCbQuery('🔥 NIVEL 9/10: Zonas con muchos nervios. Dolor punzante.', {show_alert: true}));
+bot.action('pain_arm', (ctx) => ctx.answerCbQuery('✅ NIVEL 4/10: Muy llevadero. Ideal para primer tattoo.', {show_alert: true}));
+bot.action('pain_thigh', (ctx) => ctx.answerCbQuery('✅ NIVEL 3/10: Zona con músculo. Molestia leve.', {show_alert: true}));
+
+bot.action('sos_guia', (ctx) => {
+    ctx.answerCbQuery();
+    const guiaTexto = 
+`🧼 **GUÍA DE CURACIÓN PROFESIONAL**
+━━━━━━━━━━━━━━━━━━━━
+
+1️⃣ **FASE 1: PROTECCIÓN (Días 1-3)**
+• Mantén el film/apósito el tiempo que te haya dicho el tatuador.
+• Al quitarlo, lava suavemente con agua tibia y **jabón neutro**.
+• Seca a toquecitos con papel de cocina (NO toallas).
+• Aplica una capa *muy fina* de crema específica.
+
+2️⃣ **FASE 2: PELADO (Días 4-10)**
+• El tatuaje empezará a pelarse y picar. **¡NO TE RASQUES!**
+• Si pica, dale palmadas suaves.
+• Sigue hidratando 2-3 veces al día.
+
+3️⃣ **FASE 3: ASENTAMIENTO (Días 15+)**
+• La piel se regenera completamente.
+• Usa siempre **protector solar 50+** si lo expones al sol.
+
+🚫 **PROHIBIDO DURANTE 15 DÍAS:**
+❌ Sol directo, playa y piscina.
+❌ Gimnasio (sudor excesivo) los primeros 3-4 días.
+❌ Ropa ajustada de licra o lana sobre el tattoo.`;
+    
+    ctx.reply(guiaTexto, { parse_mode: 'Markdown' });
+});
+
 bot.action('sos_alarma', (ctx) => { 
     const uid = String(ctx.from.id);
-    if (db.alarmas[uid]) { delete db.alarmas[uid]; ctx.reply('🔕 Alarma OFF'); }
-    else { db.alarmas[uid] = Date.now(); ctx.reply('🔔 Alarma ON (Cada 4h)'); }
+    if (db.alarmas[uid]) { 
+        delete db.alarmas[uid]; 
+        ctx.reply('🔕 **ALARMA DESACTIVADA**\nYa no recibirás recordatorios.'); 
+    } else { 
+        db.alarmas[uid] = Date.now(); 
+        ctx.reply('🔔 **ALARMA ACTIVADA**\nTe recordaré lavarte y echarte crema cada 4 horas.'); 
+    }
     ctx.answerCbQuery(); 
 });
-bot.action('sos_dolor', (ctx) => { ctx.reply('Selecciona zona:', Markup.inlineKeyboard([[Markup.button.callback('Brazo', 'd_3')]])); ctx.answerCbQuery(); });
-bot.action('sos_guia', (ctx) => { ctx.reply('Lavar, Secar, Crema. 3 veces/día.'); ctx.answerCbQuery(); });
+
+bot.action('sos_faq', (ctx) => {
+    ctx.answerCbQuery();
+    const faq = 
+`❓ **PREGUNTAS FRECUENTES**
+━━━━━━━━━━━━━━━━━━━━
+**Q: ¿Es normal que suelte tinta?**
+A: Sí, durante las primeras 24-48h es normal manchar la ropa o las sábanas. Es plasma con tinta sobrante.
+
+**Q: ¿Puedo beber alcohol?**
+A: Evítalo las primeras 24h, ya que diluye la sangre y puedes sangrar más.
+
+**Q: ¿Me ha salido un grano en el tattoo?**
+A: Puede ser exceso de crema. Deja de echar crema 1 día y deja que seque.`;
+    ctx.reply(faq, {parse_mode: 'Markdown'});
+});
+
+bot.action('sos_back_menu', (ctx) => { ctx.editMessageText('🏥 **CUIDADOS**', Markup.inlineKeyboard([
+        [Markup.button.callback('🚨 EVALUADOR DE INFECCIÓN (IA)', 'sos_panico')],
+        [Markup.button.callback('🩸 Escala de Dolor', 'sos_dolor'), Markup.button.callback('🧼 Guía de Curación', 'sos_guia')],
+        [Markup.button.callback('⏰ Alarma Curas', 'sos_alarma'), Markup.button.callback('❓ Preguntas Frecuentes', 'sos_faq')],
+        [Markup.button.callback('⬅️ Volver', 'sos_volver')]
+    ])); 
+});
+
 bot.action('sos_volver', (ctx) => { ctx.deleteMessage(); irAlMenuPrincipal(ctx); }); 
-bot.action('d_3', (ctx) => ctx.answerCbQuery('Nivel: 3/10', {show_alert:true}));
-
-
-bot.hears('⬅️ Volver', (ctx) => irAlMenuPrincipal(ctx));
-bot.hears('🧼 Guía', (ctx) => ctx.reply('Lavar, Secar, Crema. 3 veces/día.'));
-bot.hears('🩸 Dolor', (ctx) => ctx.reply('Selecciona zona:', Markup.inlineKeyboard([[Markup.button.callback('Brazo', 'd_3')]])));
-
 
 bot.on('web_app_data', (ctx) => {
     const uid = String(ctx.from.id);
@@ -733,12 +953,9 @@ bot.on('web_app_data', (ctx) => {
     guardar();
 });
 
-// 🔥 PANEL ADMIN
 bot.hears('📊 Panel Admin', (ctx) => {
     if (ctx.from.id.toString() !== MI_ID.toString()) return;
-    
     const botonMant = db.mantenimiento ? '🟢 Desactivar Mantenimiento' : '🔴 Mantenimiento';
-
     ctx.reply('🛠️ **PANEL DE ADMINISTRACIÓN**', Markup.inlineKeyboard([
         [Markup.button.callback('👥 Lista Usuarios', 'adm_users'), Markup.button.callback('🎟️ Crear Cupón', 'adm_cup')],
         [Markup.button.callback('📢 Difusión Global', 'adm_broad'), Markup.button.callback('⏰ Recordatorio', 'adm_rem')],
@@ -758,45 +975,27 @@ bot.action('adm_cup', (ctx) => ctx.scene.enter('coupon-wizard'));
 bot.action('adm_rem', (ctx) => ctx.scene.enter('reminder-wizard'));
 bot.action('admin_cita', (ctx) => ctx.scene.enter('cita-wizard'));
 
-// 🔥 INVENTARIO DE CITAS
 bot.action('adm_citas_list', (ctx) => {
     const now = Date.now();
-    const citasFuturas = db.citas
-        .filter(c => c.fecha > now)
-        .sort((a, b) => a.fecha - b.fecha);
-
-    if (citasFuturas.length === 0) {
-        ctx.reply('📭 No hay citas próximas.');
-    } else {
+    const citasFuturas = db.citas.filter(c => c.fecha > now).sort((a, b) => a.fecha - b.fecha);
+    if (citasFuturas.length === 0) { ctx.reply('📭 No hay citas próximas.'); } 
+    else {
         let msg = "🗓️ **INVENTARIO DE CITAS**\n━━━━━━━━━━━━━━━━━━━━\n\n";
-        citasFuturas.forEach(c => {
-            msg += `📅 **${c.fechaTexto}**\n👤 ${c.nombre}\n💉 ${c.descripcion}\n📞 ${c.telefono}\n────────────────────\n`;
-        });
+        citasFuturas.forEach(c => { msg += `📅 **${c.fechaTexto}**\n👤 ${c.nombre}\n💉 ${c.descripcion}\n📞 ${c.telefono}\n────────────────────\n`; });
         ctx.reply(msg, { parse_mode: 'Markdown' });
     }
     ctx.answerCbQuery();
 });
 
-// CRON: Recordatorios 24H (Para Cliente y Admin)
 setInterval(() => {
     const ahora = Date.now();
-    const UN_DIA = 86400000;
-
     db.citas.forEach(c => {
-        const diff = c.fecha - ahora;
-        
-        // Si falta menos de 24h (y más de 23h 50m para no repetir) y no se ha avisado
-        if (!c.avisado24h && diff > 0 && diff <= UN_DIA && diff > (UN_DIA - 600000)) {
-            // Aviso al Cliente
-            bot.telegram.sendMessage(c.clienteId, `⏰ **RECORDATORIO 24H**\nHola ${c.nombre}, tu cita es mañana a las ${c.fechaTexto}.`).catch(()=>{});
-            
-            // Aviso al Admin (Tú)
-            bot.telegram.sendMessage(MI_ID, `🔔 **ALERTA 24H**\nMañana tienes cita con ${c.nombre} a las ${c.fechaTexto}.`).catch(()=>{});
-            
-            c.avisado24h = true; 
-            guardar();
+        if (!c.avisado24h && (c.fecha - ahora) > 0 && (c.fecha - ahora) <= 86400000) {
+            bot.telegram.sendMessage(c.clienteId, `⏰ Mañana cita: ${c.fechaTexto}`).catch(()=>{});
+            bot.telegram.sendMessage(MI_ID, `🔔 **ALERTA 24H**\nCita mañana: ${c.nombre}`).catch(()=>{});
+            c.avisado24h = true; guardar();
         }
     });
 }, 60000); 
 
-bot.launch().then(() => console.log('🚀 SpicyInk V19 (Final - Bugfix Citas)'));
+bot.launch().then(() => console.log('🚀 SpicyInk V21 (SOS Profesional)'));
