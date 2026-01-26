@@ -103,7 +103,7 @@ const server = http.createServer((req, res) => {
         res.end(HTML_RULETA);
     } else {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Tatuador Online - V13.0 (Fusión Completa) ✅');
+        res.end('Tatuador Online - V13.0 (Fusión Completa + Fix Presupuesto) ✅');
     }
 });
 
@@ -156,7 +156,7 @@ function guardar() {
 }
 
 // ==========================================
-// 3. UTILIDADES (CÓDIGO 1 + CÓDIGO 2)
+// 3. UTILIDADES
 // ==========================================
 const notificarAdmin = (ctx, accion) => {
     if (ctx.from.id.toString() !== MI_ID.toString()) {
@@ -210,18 +210,36 @@ function traducirTerminos(texto) {
     return traducido;
 }
 
+// ==========================================
+// 🔥 LÓGICA DE PRESUPUESTO DINÁMICA (CÓDIGO 1 - RESTAURADO)
+// ==========================================
 function calcularPresupuesto(tamanoStr, zona, estilo, tieneFoto) {
     const cms = parseInt(tamanoStr.replace(/\D/g, '')) || 0;
+    const zonaLow = zona.toLowerCase();
+    const estiloLow = (estilo || "").toLowerCase();
     let estimado = "";
-    if (cms <= 5) estimado = "30€ (Mini)";
+
+    if (cms <= 5) estimado = "30€ (Tarifa Mini)";
     else if (cms <= 10) estimado = "65€ - 85€ (Mediano)";
     else if (cms <= 14) estimado = "90€ - 110€ (Grande)";
     else if (cms <= 20) estimado = "120€ - 200€ (Maxi)";
-    else return "A valorar (Pieza XL)";
-    
+    else return "A valorar por el tatuador (Pieza XL / Sesión)";
+
+    let pluses = [];
+    if (estiloLow.includes("realismo")) pluses.push("Complejidad de Estilo (Realismo)");
+    else if (estiloLow.includes("lettering")) pluses.push("Detalle de Caligrafía (Lettering)");
+
+    const zonasCriticas = ['costillas', 'cuello', 'mano', 'rodilla', 'esternon', 'cara', 'pies', 'columna', 'codo', 'tobillo', 'axila'];
+    if (zonasCriticas.some(z => zonaLow.includes(z))) pluses.push("Dificultad de Zona Anatómica");
+
+    if (tieneFoto) pluses.push("Carga de detalle analizada en referencia 🖼️");
+    else pluses.push("Sin referencia visual (Sujeto a cambios)");
+
     let base = `Estimado base: ${estimado}`;
-    if (tieneFoto) base += "\n⚠️ + Ajuste por complejidad de foto.";
-    base += "\n📢 *Precio orientativo. El tatuador confirma el final.*";
+    if (pluses.length > 0) base += `\n⚠️ FACTORES DE AJUSTE:\n└ ${pluses.join("\n└ ")}`;
+    
+    base += `\n\n📢 **AVISO:** Este presupuesto ha sido generado automáticamente por un robot con fines puramente orientativos. El precio real y definitivo será estipulado únicamente por el tatuador tras revisar personalmente el diseño final.`;
+    
     return base;
 }
 
@@ -255,29 +273,83 @@ const citaWizard = new Scenes.WizardScene('cita-wizard',
     }
 );
 
-// --- PRESUPUESTO AUTOMÁTICO (CLIENTE) ---
+// --- PRESUPUESTO COMPLETO (CÓDIGO 1 RESTAURADO - IDÉNTICO A IMAGEN) ---
 const tattooScene = new Scenes.WizardScene('tattoo-wizard',
-    (ctx) => { ctx.reply('📝 **PRESUPUESTO EXPRESS**\nNombre:'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('📍 Zona del cuerpo:'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.zona = ctx.message.text; ctx.reply('📏 Tamaño en cm (ej: 10cm):'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.tamano = ctx.message.text; ctx.reply('🎨 Estilo (Realismo, Linea fina...):'); return ctx.wizard.next(); },
-    (ctx) => { ctx.wizard.state.f.estilo = ctx.message.text; ctx.reply('📸 ¿Tienes foto? Envíala o escribe "No":'); return ctx.wizard.next(); },
+    (ctx) => { ctx.reply('⚠️ FORMULARIO DE CITA\n━━━━━━━━━━━━━━━━━━━━\nEscribe tu Nombre Completo:'); ctx.wizard.state.f = {}; return ctx.wizard.next(); },
+    (ctx) => { ctx.wizard.state.f.nombre = ctx.message.text; ctx.reply('🔞 ¿Edad?', Markup.keyboard([['+18 años', '+16 años'], ['Menor de 16']]).oneTime().resize()); return ctx.wizard.next(); },
+    (ctx) => {
+        if (ctx.message.text === 'Menor de 16') { ctx.reply('❌ Mínimo 16 años.'); return ctx.scene.leave(); }
+        ctx.wizard.state.f.edad = ctx.message.text;
+        ctx.reply('📍 Selecciona la zona del cuerpo:', 
+            Markup.keyboard([
+                ['Antebrazo', 'Bíceps', 'Hombro'],
+                ['Costillas', 'Esternón', 'Espalda'],
+                ['Muslo', 'Gemelo', 'Tobillo'],
+                ['Mano', 'Cuello', 'Muñeca'],
+                ['Otro']
+            ]).oneTime().resize()); 
+        return ctx.wizard.next();
+    },
+    (ctx) => { 
+        ctx.wizard.state.f.zona = ctx.message.text; 
+        ctx.reply('📏 Tamaño aproximado en cm:', Markup.removeKeyboard()); 
+        return ctx.wizard.next(); 
+    },
+    (ctx) => { 
+        ctx.wizard.state.f.tamano = ctx.message.text; 
+        ctx.reply('🎨 Selecciona el Estilo técnico:', 
+            Markup.inlineKeyboard([
+                [Markup.button.callback('Fine Line', 'estilo_Fine Line'), Markup.button.callback('Realismo', 'estilo_Realismo')],
+                [Markup.button.callback('Lettering', 'estilo_Lettering'), Markup.button.callback('Blackwork', 'estilo_Blackwork')],
+                [Markup.button.callback('Otro', 'estilo_Otro')]
+            ]));
+        return ctx.wizard.next();
+    },
+    (ctx) => {
+        if (ctx.callbackQuery) {
+            ctx.wizard.state.f.estilo = ctx.callbackQuery.data.replace('estilo_', '');
+            ctx.answerCbQuery();
+            ctx.reply('🏥 Alergias o medicación:');
+            return ctx.wizard.next();
+        }
+        return ctx.reply('⚠️ Usa los botones.');
+    },
+    (ctx) => { 
+        ctx.wizard.state.f.salud = ctx.message.text; 
+        ctx.reply('🖼️ REFERENCIA VISUAL (Recomendado)\n━━━━━━━━━━━━━━━━━━━━\nEnvía una foto de tu diseño o pulsa el botón:', 
+            Markup.inlineKeyboard([[Markup.button.callback('❌ No tengo diseño', 'no_foto')]]));
+        return ctx.wizard.next(); 
+    },
+    async (ctx) => {
+        if (ctx.message && ctx.message.photo) {
+            ctx.wizard.state.f.foto = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+            ctx.wizard.state.f.tieneFoto = true;
+        } else if (ctx.callbackQuery && ctx.callbackQuery.data === 'no_foto') {
+            ctx.wizard.state.f.tieneFoto = false;
+            ctx.answerCbQuery();
+        } else return ctx.reply('⚠️ Envía una foto o pulsa el botón.');
+        ctx.reply('📲 WhatsApp (con prefijo, ej: 34600000000):'); return ctx.wizard.next();
+    },
     async (ctx) => {
         const d = ctx.wizard.state.f;
-        if (ctx.message.photo) { d.foto = ctx.message.photo[ctx.message.photo.length-1].file_id; d.tieneFoto = true; }
-        else { d.tieneFoto = false; }
-        
-        db.fichas[ctx.from.id] = d; guardar();
+        d.telefono = ctx.message.text.replace(/\s+/g, '').replace('+', '');
+        db.fichas[ctx.from.id] = d;
+        guardar();
         const estimacion = calcularPresupuesto(d.tamano, d.zona, d.estilo, d.tieneFoto);
         
-        const fichaAdmin = `🔔 **SOLICITUD**\n👤 ${d.nombre} (${ctx.from.id})\n📍 ${d.zona} | ${d.tamano}\n🎨 ${d.estilo}\n💰 ${estimacion}`;
-        await ctx.telegram.sendMessage(MI_ID, fichaAdmin);
-        if (d.foto) await ctx.telegram.sendPhoto(MI_ID, d.foto);
+        const fichaAdmin = `🔔 **NUEVA SOLICITUD**\n━━━━━━━━━━━━━━━━━━━━\n👤 **ID Usuario:** \`${ctx.from.id}\`\n👤 **Nombre:** ${d.nombre}\n🔞 **Edad:** ${d.edad}\n📍 **Zona:** ${d.zona}\n📏 **Tamaño:** ${d.tamano}\n🎨 **Estilo:** ${d.estilo}\n🏥 **Salud:** ${d.salud}\n📞 **WhatsApp:** +${d.telefono}\n\n💰 **${estimacion.split('\n')[0]}**`;
+        
+        await ctx.telegram.sendMessage(MI_ID, fichaAdmin, {
+            parse_mode: 'Markdown',
+            ...Markup.inlineKeyboard([[Markup.button.url('📲 Hablar por WhatsApp', `https://wa.me/${d.telefono}`)]])
+        });
+        if (d.foto) await ctx.telegram.sendPhoto(MI_ID, d.foto, { caption: `🖼️ Referencia de ${d.nombre}` });
 
-        await ctx.reply(`✅ **RECIBIDO**\n${estimacion}`);
+        await ctx.reply(`✅ SOLICITUD ENVIADA\n━━━━━━━━━━━━━━━━━━━━\n${estimacion}`);
         return ctx.scene.leave();
     }
 );
+// ------------------------------------------------------------------------------------------------
 
 // --- IA GENERADORA (GEMINI PROMPTS) ---
 const iaScene = new Scenes.WizardScene('ia-wizard',
@@ -405,7 +477,7 @@ bot.hears('👤 Mi Perfil', (ctx) => {
 bot.hears('🎮 Zona Fun', (ctx) => {
     ctx.reply('🎢 **ZONA FUN**', Markup.keyboard([
         ['🎰 Tirar Ruleta', '🤖 IA: ¿Qué me tatuo?'],
-        ['🔮 Oráculo', '🎱 Bola 8'],
+        ['🔮 Oráculo', '🎱 Bola 8'], 
         ['📚 Diccionario', '🕶️ Probador 2.0'],
         ['⬅️ Volver']
     ]).resize());
